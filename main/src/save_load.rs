@@ -1,3 +1,4 @@
+use bevy_app::App;
 use bevy_ecs::query::QueryState;
 use bevy_ecs::{entity::Entity, query::With, world::World};
 use bevy_hierarchy::BuildWorldChildren;
@@ -7,23 +8,32 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 
-use crate::typetag::{IntoBevyTypeTag, BevyTypeTag, TypeTagServer};
+use crate::typetag::{IntoTypeTagged, BevyTypeTagged, TypeTagServer};
 use crate::{BindBevyObject, BevyObject};
 
 #[allow(unused)]
 use crate::serialize_group;
 
-
 /// Extension methods on [`World`].
 pub trait WorldExtension {
     /// Save a [`BindBevyObject`] type or a group created by [`serialize_group!`].
+    ///
+    /// # What's a [`Serializer`]?
+    ///
+    /// Most `serde` frontends provide a serializer, like `serde_json::Serializer`.
+    /// They typically wrap a [`std::io::Write`] and write to that stream.
     fn save<T: SaveLoad, S: Serializer>(&mut self, serializer: S) -> Result<S::Ok, S::Error>;
     /// Load a [`BindBevyObject`] type or a group created by [`serialize_group!`].
+    ///
+    /// # What's a [`Deserializer`]?
+    ///
+    /// Most `serde` frontends provide a serializer, like `serde_json::Deserializer`.
+    /// They typically wrap a [`std::io::Read`] and read from that stream.
     fn load<T: SaveLoad, D: Deserializer<'static>>(&mut self, deserializer: D) -> Result<(), D::Error>;
-    /// Despawn all root entities in a [`BindBevyObject`] type or a group created by [`serialize_group!`].
+    /// Despawn all root entities of a [`BindBevyObject`] type or a group created by [`serialize_group!`] recursively.
     fn despawn_bound_objects<T: SaveLoad>(&mut self);
     /// Register a type that can be deserialized dynamically.
-    fn register_typetag<A: BevyTypeTag, B: IntoBevyTypeTag<A>>(&mut self) where for<'de> B: Deserialize<'de>;
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
 }
 
 impl WorldExtension for World {
@@ -39,8 +49,27 @@ impl WorldExtension for World {
         T::despawn(self)
     }
 
-    fn register_typetag<A: BevyTypeTag, B: IntoBevyTypeTag<A>>(&mut self) where for<'de> B: Deserialize<'de>{
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
         let mut server = self.get_resource_or_insert_with(|| TypeTagServer::<A>::default());
+        server.register::<B>()
+    }
+}
+
+impl WorldExtension for App {
+    fn save<T: SaveLoad, S: Serializer>(&mut self, serializer: S) -> Result<S::Ok, S::Error> {
+        T::save(&mut self.world, serializer)
+    }
+
+    fn load<T: SaveLoad, D: Deserializer<'static>>(&mut self, deserializer: D) -> Result<(), D::Error> {
+        T::load(&mut self.world, deserializer)
+    }
+
+    fn despawn_bound_objects<T: SaveLoad>(&mut self){
+        T::despawn(&mut self.world)
+    }
+
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
+        let mut server = self.world.get_resource_or_insert_with(|| TypeTagServer::<A>::default());
         server.register::<B>()
     }
 }
@@ -108,7 +137,8 @@ impl<T> SaveLoad for T where T: BindBevyObject {
     }
 
     fn despawn(world: &mut World) {
-        let queue = world.query_filtered::<Entity, With<T>>().iter(&world);
+        let mut query = world.query_filtered::<Entity, With<T>>();
+        let queue = query.iter(&world).collect::<Vec<_>>();
         for entity in queue {
             bevy_hierarchy::despawn_with_children_recursive(world, entity);
         }

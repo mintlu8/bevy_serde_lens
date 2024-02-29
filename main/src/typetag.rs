@@ -1,63 +1,71 @@
-use std::{borrow::Cow, rc::Rc, sync::Arc};
+use std::borrow::Cow;
 use bevy_ecs::system::Resource;
 use rustc_hash::FxHashMap;
 use serde_value::ValueDeserializer;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use crate::{BoxError, Error, SerdeProject};
 
 /// A serializable trait object.
-pub struct TypeTagged<T: BevyTypeTag>(T);
+pub struct TypeTagged<T: BevyTypeTagged>(T);
 
 /// A serializable trait object.
 ///
-/// Implement this on a `dyn T` to work with `Box<dyn T>` 
-pub trait BevyTypeTag: 'static {
+/// # Note: 
+///
+/// Implementing this trait only makes serialization work,
+/// not deserialization. You need to call `register_typetag`
+/// on `World` or `App` with concrete subtypes for deserialization.
+///
+/// # Example
+///
+/// A simple setup to serialize and deserialize a dynamic stat `Box<dyn Stat>`.
+/// ```
+/// pub trait Stat: erased_serde::Serialize {
+///     fn name(&self) -> &'static str {
+///         std::any::type_name()
+///     }
+///
+///     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+///         self
+///     }
+/// }
+///
+/// impl BevyTypeTagged for Box<dyn Stat> {
+///     fn name(&self) -> &'static str {
+///         self.as_ref().name()
+///     }
+///
+///     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+///         self.as_ref().as_serialize()
+///     }
+/// }
+///
+/// #[derive(Serialize, Deserialize)]
+/// pub struct MyStat { .. }
+///
+/// impl Stat for MyStat { .. }
+///
+/// impl IntoTypeTagged<Box<dyn Stat>> for MyStat { .. }
+///
+/// fn main() {
+///     ..
+///     app.register_typetag::<Box<dyn<Stat>>, MyStat>   
+/// }
+/// ```
+pub trait BevyTypeTagged: 'static {
+    /// Returns the type name of the implementor.
     fn name(&self) -> &'static str;
+    /// Returns the untagged inner value of the implementor.
+    ///
+    /// # Note
+    ///
+    /// If you used the actual `typetag` crate on your trait, be sure to use
+    /// return a reference to the inner value instead of `dyn YourTrait`.
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl<T> BevyTypeTag for Box<T> where T: BevyTypeTag {
-    fn name(&self) -> &'static str {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> BevyTypeTag for Rc<T> where T: BevyTypeTag {
-    fn name(&self) -> &'static str {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> BevyTypeTag for Arc<T> where T: BevyTypeTag {
-    fn name(&self) -> &'static str {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> BevyTypeTag for Cow<'static, T> where T: BevyTypeTag + ToOwned {
-    fn name(&self) -> &'static str {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
 /// A concrete type that implements a [`BevyTypeTag`] trait.
-pub trait IntoBevyTypeTag<T: BevyTypeTag> {
+pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
     /// Type name, must be unique per type.
     fn name() -> &'static str;
     /// Convert to a [`BevyTypeTag`] type.
@@ -66,23 +74,28 @@ pub trait IntoBevyTypeTag<T: BevyTypeTag> {
 
 type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, erased_serde::Error>;
 
+/// A [`Resource`] that stores registered deserialization functions.
 #[derive(Resource)]
-pub struct TypeTagServer<T: BevyTypeTag> {
+pub struct TypeTagServer<T: BevyTypeTagged> {
     functions: FxHashMap<&'static str, DeserializeFn<T>>,
 }
 
-impl<T: BevyTypeTag> Default for TypeTagServer<T> {
+impl<T: BevyTypeTagged> Default for TypeTagServer<T> {
     fn default() -> Self {
         Self { functions: FxHashMap::default() }
     }
 }
 
-impl<T: BevyTypeTag> TypeTagServer<T> {
+impl<T: BevyTypeTagged> TypeTagServer<T> {
     pub fn get(&self, name: &str) -> Option<&DeserializeFn<T>>{
         self.functions.get(name)
     }
 
-    pub fn register<A: IntoBevyTypeTag<T>>(&mut self) where for<'de> A: Deserialize<'de>{
+    pub fn clear(&mut self) {
+        self.functions.clear()
+    }
+
+    pub fn register<A: IntoTypeTagged<T>>(&mut self) {
         self.functions.insert(A::name(), |de| {
             Ok(A::into_type_tagged(erased_serde::deserialize::<A>(de)?))
         });
@@ -92,7 +105,7 @@ impl<T: BevyTypeTag> TypeTagServer<T> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExternallyTagged<K, V>(K, V);
 
-impl<T: BevyTypeTag + Send + Sync + 'static> SerdeProject for TypeTagged<T> {
+impl<T: BevyTypeTagged + Send + Sync + 'static> SerdeProject for TypeTagged<T> {
     type Ctx = TypeTagServer<T>;
 
     type Ser<'t> = ExternallyTagged<&'static str, serde_value::Value>;

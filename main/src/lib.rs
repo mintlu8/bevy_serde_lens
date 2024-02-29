@@ -12,7 +12,7 @@ mod save_load;
 pub use save_load::{WorldExtension, Join};
 mod macros;
 mod typetag;
-pub use typetag::{BevyTypeTag, IntoBevyTypeTag};
+pub use typetag::{BevyTypeTagged, IntoTypeTagged};
 pub mod asset;
 pub mod interning;
 
@@ -51,13 +51,18 @@ pub enum Error {
     SerializationError(String),
     #[error("Serialization Error: {0}")]
     DeserializationError(String),
+    #[error("Cannot serialize a skipped enum variant \"{0}\".")]
+    SkippedVariant(&'static str),
     #[error("{0}")]
     CustomError(String),
     #[error("Trying to deserialize a Handle without an associated path.")]
     PathlessHandle,
     #[error("Asset missing.")]
     AssetMissing,
-
+    #[error("'__Phantom' branch deserialized, this is impossible.")]
+    PhantomBranch,
+    #[error("Trying to serialize/deserialize a enum with no valid variants.")]
+    NoValidVariants,
 }
 
 impl Error {
@@ -170,9 +175,9 @@ impl<T> BevyObject for T where T: SerdeProject + Component {
 pub trait Convert<In> {
     /// Convert a reference to a [`SerdeProject`] type's reference.
     ///
-    /// Since `serde::Serialize` takes a reference,
-    /// you might want to use a crate like [`ref_cast`] to
-    /// perform this conversion on a new-type.
+    /// A simple implementation is [`Clone`], but if
+    /// using a newtype, you might want to use a crate like [`ref_cast`] to
+    /// perform this conversion on a newtype.
     fn ser(input: &In) -> impl Borrow<Self>;
     /// Convert this [`SerdeProject`] type back to the original.
     fn de(self) -> In;
