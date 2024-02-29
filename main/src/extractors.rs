@@ -6,6 +6,8 @@ use itertools::Itertools;
 
 use crate::{BevyObject, BindBevyObject, BoxError, Error, WorldUtil};
 
+#[allow(unused)]
+use bevy_ecs::component::Component;
 
 /// Extractor for casting a [`Component`] to its bound [`BevyObject`].
 pub type Object<T> = <T as BindBevyObject>::BevyObject;
@@ -30,12 +32,12 @@ impl<T> BevyObject for Maybe<T> where T: BevyObject {
     }
 }
 
-/// Extractor for a single [`BevyObject`] on a [`Children`]
+/// Extractor for a single [`BevyObject`] in [`Children`]
 /// instead of the entity itself. 
 ///
 /// This will iterate through all children
-/// to validate uniqueness. [`ChildUnchecked`] is a non-checking and non-panicking
-/// alternative. Alternatively use [`ChildList`] for a list of items.
+/// to validate uniqueness. [`ChildUnchecked`] is a non-checking
+/// alternative. Alternatively use [`ChildList`] for a list of objects.
 ///
 /// # Errors
 ///
@@ -73,11 +75,12 @@ impl<T> BevyObject for Child<T> where T: BevyObject {
     }
 }
 
-/// Extractor for a single [`BevyObject`] on a [`Children`]
+/// Extractor for a single [`BevyObject`] in [`Children`]
 /// instead of the entity itself. 
-
+///
 /// This will find the first item and
-/// may discard duplicate information. Use [`ChildList`] for a list of items.
+/// may discard duplicate entities. 
+/// Alternatively use [`ChildList`] for a list of objects.
 pub struct ChildUnchecked<T>(T);
 
 impl<T> BevyObject for ChildUnchecked<T> where T: BevyObject {

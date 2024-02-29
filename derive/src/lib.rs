@@ -3,7 +3,7 @@ use proc_macro_error::{abort, proc_macro_error};
 use syn::{spanned::Spanned, DeriveInput, Ident, LitStr, Type, Generics, Error, Attribute, Field, DataEnum};
 use quote::{format_ident, quote};
 
-/// Project a struct to and from a ser/de-able struct using `World` access.
+/// Project a struct to and from a (de)serializable struct using `World` access.
 /// Requires all fields with `SerdeProject` or `Serialize` + `DeserializeOwned` implementations.
 /// 
 /// # Attributes
@@ -206,7 +206,7 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
         }
     }
 
-    if ser_fields.len() == 0 {
+    if ser_fields.is_empty() {
         return Ok(quote!(
             const _: () = {
                 use ::core::borrow::Borrow;

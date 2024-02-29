@@ -1,3 +1,5 @@
+//! Module for serializing [`Handle`]s and [`Asset`]s.
+
 use std::borrow::Borrow;
 use std::ops::Deref;
 use bevy_asset::{Asset, AssetServer, Assets, Handle};

@@ -10,6 +10,7 @@ macro_rules! parse_name {
 }
 
 /// Bind a [`BevyObject`] to a [`Component`].
+///
 /// The type is unnameable but can be accessed via [`BindBevyObject::BevyObject`]
 /// or the [`Object`] extractor.
 ///
@@ -60,10 +61,6 @@ macro_rules! bind_object {
     }) => {
         #[allow(unused)]
         const _: () = {
-            use $crate::{World, Entity};
-            use $crate::{Child, ChildList, Maybe, Object, ChildUnchecked};
-            use ::std::marker::PhantomData;
-
             impl $crate::BindBevyObject for $main {
                 type BevyObject = __BoundObject;
 
@@ -81,7 +78,7 @@ macro_rules! bind_object {
                     $(#[$($attr)*])*
                     $field: <$ty as $crate::BevyObject>::Ser<'t>,
                 )*
-                __phantom: PhantomData<&'t ()>
+                __phantom: ::std::marker::PhantomData<&'t ()>
             }
 
             #[derive($crate::serde::Deserialize)]
@@ -91,20 +88,25 @@ macro_rules! bind_object {
                     $(#[$($attr)*])*
                     $field: <$ty as $crate::BevyObject>::De<'t>,
                 )*
-                __phantom: PhantomData<&'t ()>
+                __phantom: ::std::marker::PhantomData<&'t ()>
             }
     
             impl $crate::BevyObject for __BoundObject {
                 type Ser<'t> = __Ser<'t>;
                 type De<'de> = __De<'de>;
-                fn to_ser<'t>(world: &'t World, entity: Entity) -> Result<Option<Self::Ser<'t>>, Box<$crate::Error>> {
+                fn to_ser(world: & $crate::World, entity: $crate::Entity) -> Result<Option<Self::Ser<'_>>, Box<$crate::Error>> {
                     Ok(Some(__Ser {
-                        $($field: <$ty as $crate::BevyObject>::to_ser(world, entity)?.unwrap(),)*
-                        __phantom: PhantomData,
+                        $($field: <$ty as $crate::BevyObject>::to_ser(world, entity)?
+                            .ok_or_else(||$crate::Error::FieldMissing {
+                                field: stringify!($field),
+                                ty: <$main as BindBevyObject>::name()
+                            }.boxed())?,
+                        )*
+                        __phantom: ::std::marker::PhantomData,
                     }))
                 }
     
-                fn from_de<'de>(world: &mut World, parent: Entity, de: Self::De<'de>) -> Result<(), Box<$crate::Error>> {
+                fn from_de(world: &mut $crate::World, parent: $crate::Entity, de: Self::De<'_>) -> Result<(), Box<$crate::Error>> {
                     $(<$ty as $crate::BevyObject>::from_de(world, parent, de.$field)?;)*
                     Ok(())
                 }
@@ -113,9 +115,9 @@ macro_rules! bind_object {
     }
 }
 
-/// Generate a `type` that can be used on `World::save` and `World::load`.
+/// Batches multiple [`BindBevyObject`] types to be serialized together as a map.
 ///
-/// Groups multiple [`BindBevyObject`] types to be serialized together as a map.
+/// This macro generates a `type` that can be used on `World::save` and `World::load`.
 ///
 /// # Example
 ///
@@ -123,7 +125,7 @@ macro_rules! bind_object {
 /// type SerializeItems = serialize_group!(Potion, Weapon, Armor);
 /// ```
 #[macro_export]
-macro_rules! serialize_group {
+macro_rules! batch {
     ($ty: ty) => {
         $ty
     };
@@ -141,5 +143,5 @@ struct A;
 bind_object!(A {
     this => A,
     #[serde(flatten)]
-    other => Child<A>,
+    other => crate::Child<A>,
 });

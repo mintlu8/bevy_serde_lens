@@ -1,14 +1,63 @@
-use std::borrow::Cow;
+//! Module for serializing trait objects.
+//!
+//! # Getting Started
+//!
+//! Let's serialize this struct:
+//!
+//! ```
+//! struct StatEntry {
+//!     stat: Box<dyn Stat>,
+//!     value: u32,
+//! }
+//! ```
+//!
+//! ```
+//! // Implement `TypeTagged` for Box<dyn Stat>
+//! impl BevyTypeTagged for Box<dyn Stat> {
+//!     ...
+//! }
+//!
+//! // StatA is an implementation of Stat
+//! impl Stat for StatA {
+//!     ...
+//! }
+//!
+//! // Implement `IntoTypeTagged` for specific implementations of `Stat`
+//! impl IntoTypeTagged for StatA {
+//!     ...
+//! }
+//!
+//! // Register specific implementations  on the `World`
+//! fn my_main() {
+//!     ..
+//!     app.register_typetag::<Box<dyn<Stat>>, StatA>   
+//!     app.register_typetag::<Box<dyn<Stat>>, StatB>   
+//! }
+//! ```
+//!
+//! Then derive [`SerdeProject`] on `StatEntry`:
+//!
+//! ```
+//! #[derive(SerdeProject)]
+//! struct StatEntry {
+//!     #[serde_project("TypeTagged<Box<dyn Stat>>")]
+//!     stat: Box<dyn Stat>,
+//!     value: u32,
+//! }
+//! ```
+
+
+use std::{borrow::Cow, marker::PhantomData};
 use bevy_ecs::system::Resource;
 use rustc_hash::FxHashMap;
 use serde_value::ValueDeserializer;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::{DeserializeOwned, Visitor}, Deserialize, Serialize};
 use crate::{BoxError, Error, SerdeProject};
 
 /// A serializable trait object.
 pub struct TypeTagged<T: BevyTypeTagged>(T);
 
-/// A serializable trait object.
+/// A trait object like `Box<dyn T>` that is (de)serializable with world access.
 ///
 /// # Note: 
 ///
@@ -47,7 +96,7 @@ pub struct TypeTagged<T: BevyTypeTagged>(T);
 ///
 /// impl IntoTypeTagged<Box<dyn Stat>> for MyStat { .. }
 ///
-/// fn main() {
+/// fn my_main() {
 ///     ..
 ///     app.register_typetag::<Box<dyn<Stat>>, MyStat>   
 /// }
@@ -64,9 +113,11 @@ pub trait BevyTypeTagged: 'static {
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
-/// A concrete type that implements a [`BevyTypeTag`] trait.
+/// A concrete type that implements a [`BevyTypeTagged`] trait.
 pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
-    /// Type name, must be unique per type.
+    /// Type name, must be unique per type and 
+    /// must match the output on the corresponding [`BevyTypeTagged`]
+    /// when type erased.
     fn name() -> &'static str;
     /// Convert to a [`BevyTypeTag`] type.
     fn into_type_tagged(self) -> T;
@@ -102,8 +153,43 @@ impl<T: BevyTypeTagged> TypeTagServer<T> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct ExternallyTagged<K, V>(K, V);
+
+impl<K, V> serde::Serialize for ExternallyTagged<K, V> where K: Serialize, V: Serialize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(&self.0, &self.1)?;
+        map.end()
+    }
+}
+
+impl<'de, K: 'de, V: 'de> serde::Deserialize<'de> for ExternallyTagged<K, V> where K: Deserialize<'de>, V: Deserialize<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+        deserializer.deserialize_map(ExternallyTaggedVisitor::<K, V>(PhantomData))
+    }
+}
+
+struct ExternallyTaggedVisitor<'de, K, V>(PhantomData<&'de (K, V)>);
+
+impl<'de, K, V> Visitor<'de> for ExternallyTaggedVisitor<'de, K, V> where K: Deserialize<'de>, V: Deserialize<'de>  {
+    type Value = ExternallyTagged<K, V>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "externally tagged enum")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de>, {
+        let Some((k, v)) = map.next_entry()? else {
+            return Err(serde::de::Error::custom(
+                "expected externally tagged value",
+            ));
+        };
+        Ok(ExternallyTagged(k, v))
+    }
+}
 
 impl<T: BevyTypeTagged + Send + Sync + 'static> SerdeProject for TypeTagged<T> {
     type Ctx = TypeTagServer<T>;
@@ -120,7 +206,7 @@ impl<T: BevyTypeTagged + Send + Sync + 'static> SerdeProject for TypeTagged<T> {
         ))
     }
 
-    fn from_de<'de>(ctx: <Self::Ctx as crate::FromWorldAccess>::Mut<'_>, de: Self::De<'de>) -> Result<Self, BoxError> {
+    fn from_de(ctx: <Self::Ctx as crate::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
         let f = ctx.get(&de.0).unwrap();
         let de = ValueDeserializer::<serde_value::DeserializerError>::new(de.1);
         Ok(f(&mut <dyn erased_serde::Deserializer>::erase(de)).map(TypeTagged)

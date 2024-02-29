@@ -1,8 +1,127 @@
+//! A pretty and structural validating serialization crate for the bevy engine.
+//!
+//! # Features
+//!
+//! * Serialize and deserialize structs with world access.
+//! * Treat an [`Entity`], its [`Component`]s and children as a single serde object.
+//! * Serialize [`Handle`]s and provide a generalized data interning interface.
+//! * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
+//!
+//! # Getting Started
+//!
+//! Assume all components are [`Serialize`] and [`DeserializeOwned`].
+//!
+//! Serialize an [`Entity`] Character with some components:
+//! ```
+//! bind_object!(Character {
+//!     #[serde(flatten)]
+//!     character: Character,
+//!     position: Position,
+//!     weapon: Maybe<Weapon>,
+//!     inventory: Maybe<Inventory>,
+//! })
+//! ```
+//! 
+//! Then call `save` on [`World`], where `serializer` is something like `serde_json::Serializer`.
+//! ```
+//! // Save
+//! world.save::<Character>(serializer)
+//! // Load
+//! world.load::<Character>(deserializer)
+//! // Delete
+//! world.despawn_bound_objects::<Character>(deserializer)
+//! ```
+//! 
+//! This saves a list of Characters like so:
+//! ```
+//! [
+//!     { .. },
+//!     { .. },
+//!     ..
+//! ]
+//! ```
+//!
+//! To save multiple types of objects in a batch, create a batch serialization type with the [`batch!`] macro.
+//!
+//! ```
+//! type SaveFileOne = batch!(Character, Monster, Terrain);
+//! world.save::<SaveFileOne>(serializer)
+//! world.load::<SaveFileOne>(serializer)
+//! world.despawn_bound_objects::<SaveFileOne>(serializer)
+//! ```
+//!
+//! This saves a map like so:
+//! ```
+//! {
+//!     "Character": [ 
+//!         { .. },
+//!         { .. },
+//!         ..
+//!     ],
+//!     "Monster": [ .. ],
+//!     "Terrain": [ .. ]
+//! }
+//! ```
+//! 
+//! # The traits and what they do
+//!
+//! ## `Serialize` and `DeserializeOwned`
+//! 
+//! Any [`Serialize`] and [`DeserializeOwned`] type is automatically [`SerdeProject`] and 
+//! any such [`Component`] is automatically a [`BevyObject`].
+//! 
+//! This comes with the downside that we cannot implement [`SerdeProject`] on any foreign
+//! type due to the orphan rule. 
+//! This is where [`Convert`] and the [`SerdeProject`](bevy_serde_project_derive::SerdeProject) 
+//! macro comes in handy.
+//!
+//! ## `FromWorldAccess`
+//!
+//! A convenient trait for getting something from the world. 
+//!
+//! Either [`NoContext`],
+//! a [`Resource`] or [`WorldAccess`] (`&world` and `&mut World`)
+//!
+//! ## `SerdeProject`
+//!
+//! [`SerdeProject`] projects non-serde types into serde types with world access.
+//!
+//! The [`SerdeProject`](bevy_serde_project_derive::SerdeProject) macro implements 
+//! [`SerdeProject`] on type where all fields either implements [`SerdeProject`] or converts
+//! to a [`SerdeProject`] newtype via the [`Convert`] trait.
+//!
+//! ### Example 
+//!
+//! Serialize a [`Handle`] as its path, stored in `AssetServer`.
+//! 
+//! ```
+//! #[derive(SerdeProject)]
+//! struct MySprite {
+//!     // implements serde, therefore is `SerdeProject`.
+//!     pub name: String,
+//!     // Calls `Convert` and `PathHandle<Image>` is `SerdeProject`.
+//!     #[serde_project("PathHandle<Image>")]
+//!     pub handle: Handle<Image>
+//! }
+//! ```
+//!
+//! ## `BevyObject`
+//!
+//! A [`BevyObject`] allows an [`Entity`] to be serialized.
+//! All [`SerdeProject`] [`Component`]s are `BevyObject`s
+//! since each entity can only have at most one of each component.
+//!
+//! ## `BindBevyObject`
+//!
+//! [`BindBevyObject`] is a key [`Component`] that indicates an Entity is the [`BevyObject`].
+//! Any entity that has the `Component` but does not satisfy the layout of the `BevyObject`
+//! will result in an error.
+
 use std::any::type_name;
 use std::borrow::Borrow;
 use std::fmt::Display;
 
-use bevy_ecs::{component::Component, system::{Resource, SystemParam}, world::{EntityRef, EntityWorldMut}};
+use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -11,12 +130,16 @@ pub use extractors::{Object, Maybe, Child, ChildUnchecked, ChildList};
 mod save_load;
 pub use save_load::{WorldExtension, Join};
 mod macros;
-mod typetag;
-pub use typetag::{BevyTypeTagged, IntoTypeTagged};
+pub mod typetagged;
 pub mod asset;
 pub mod interning;
 
 pub use bevy_serde_project_derive::SerdeProject;
+
+#[allow(unused)]
+use bevy_asset::Handle;
+#[allow(unused)]
+use bevy_hierarchy::Children;
 
 #[doc(hidden)]
 pub use bevy_ecs::{world::World, entity::Entity};
@@ -45,6 +168,11 @@ pub enum Error {
     },
     #[error("Resource {ty} not found.")]
     ResourceNotFound{
+        ty: &'static str,
+    },
+    #[error("Field {field} missing in BevyObject {ty}.")]
+    FieldMissing{
+        field: &'static str,
         ty: &'static str,
     },
     #[error("Serialization Error: {0}")]
@@ -76,8 +204,6 @@ impl Error {
 }
 
 type BoxError = Box<Error>;
-
-type Item<'w, 's, T> = <T as SystemParam>::Item<'w, 's>;
 
 /// A type serializable and deserializable with [`World`] access.
 pub trait SerdeProject: Sized {
@@ -114,11 +240,9 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     }
 }
 
-/// Associate a [`BevyObject`] to a [`Component`].
-/// 
-/// Consider this component as a marker for a serializable entity.
-/// The serialization process for the associated `BevyObject` 
-/// only starts on entities with this component.
+/// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
+///
+/// This means `world.save::<T>()` will try to serialize all entities with type T.
 pub trait BindBevyObject: Component {
     type BevyObject: BevyObject;
 
@@ -135,7 +259,7 @@ pub trait BindBevyObject: Component {
 
 /// Treat an [`Entity`], its [`Component`]s and its [`Children`] as a serializable object.
 ///
-/// All [`Serialize`] + [`DeserializeOwned`] components automatically implement this.
+/// All [`Serialize`] + [`DeserializeOwned`] components automatically implements this.
 pub trait BevyObject {
     type Ser<'t>: Serialize + 't where Self: 't;
     type De<'de>: Deserialize<'de>;
@@ -183,7 +307,7 @@ pub trait Convert<In> {
     fn de(self) -> In;
 }
 
-
+/// [`World`] functions that return a [`Result`].
 trait WorldUtil {
     fn entity_ok(&self, entity: Entity) -> Result<EntityRef, BoxError>;
     fn entity_mut_ok(&mut self, entity: Entity) -> Result<EntityWorldMut, BoxError>;

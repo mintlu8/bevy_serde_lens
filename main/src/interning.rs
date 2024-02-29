@@ -1,3 +1,5 @@
+//! Module for interning data in a [`Resource`].
+
 use std::borrow::Borrow;
 use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
@@ -19,7 +21,7 @@ pub trait Interner: Resource {
 
     /// Obtain an existing value.
     fn get(&self, key: &Self::Key) -> Result<&Self::Value, BoxError>;
-    fn add(&self, value: Self::Value) -> Result<Self::Key, BoxError>;
+    fn add(&mut self, value: Self::Value) -> Result<Self::Key, BoxError>;
 }
 
 /// Serialize an [`InterningKey`] based on the interned value.
@@ -46,7 +48,7 @@ impl<T: InterningKey> SerdeProject for Interned<T> where T::Represents: Serializ
         ctx.get(&self.0)
     }
 
-    fn from_de(ctx: <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
+    fn from_de(mut ctx: <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
         Ok(Self(ctx.add(de)?))
     }
 }
