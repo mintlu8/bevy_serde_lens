@@ -23,12 +23,12 @@ bevy_hierarchy = "0.13.0"
 erased-serde = "0.4.3"
 itertools = "0.12.1"
 serde = "1.0.197"
-serde-value = "0.7.0"
 rustc-hash = "1.1.0"
 bevy_asset = "0.13.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 bevy_serde_project_derive = { version = "0.1.0", path = "../derive" }
+scoped-tls = "1.0.1"
 
 [dev-dependencies]
 bevy_reflect = "0.13.0"

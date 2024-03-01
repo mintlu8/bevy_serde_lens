@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 
-use crate::typetagged::{IntoTypeTagged, BevyTypeTagged, TypeTagServer};
+use crate::typetagged::{scoped, BevyTypeTagged, IntoTypeTagged, TypeTagServer};
 use crate::{BindBevyObject, BevyObject};
 
 #[allow(unused)]
@@ -42,7 +42,13 @@ impl WorldExtension for World {
     }
 
     fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
-        T::load(self, deserializer)
+        if let Some(server) = self.remove_resource::<TypeTagServer>() {
+            let result = scoped(&server, ||T::load(self, deserializer));
+            self.insert_resource(server);
+            result
+        } else {
+            T::load(self, deserializer)
+        }
     }
 
     fn despawn_bound_objects<T: SaveLoad>(&mut self){
@@ -50,27 +56,26 @@ impl WorldExtension for World {
     }
 
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
-        let mut server = self.get_resource_or_insert_with(TypeTagServer::<A>::default);
-        server.register::<B>()
+        let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
+        server.register::<A, B>()
     }
 }
 
 impl WorldExtension for App {
     fn save<T: SaveLoad, S: Serializer>(&mut self, serializer: S) -> Result<S::Ok, S::Error> {
-        T::save(&mut self.world, serializer)
+        self.world.save::<T, S>(serializer)
     }
 
     fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
-        T::load(&mut self.world, deserializer)
+        self.world.load::<T, D>(deserializer)
     }
 
     fn despawn_bound_objects<T: SaveLoad>(&mut self){
-        T::despawn(&mut self.world)
+        self.world.despawn_bound_objects::<T>()
     }
 
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
-        let mut server = self.world.get_resource_or_insert_with(TypeTagServer::<A>::default);
-        server.register::<B>()
+        self.world.register_typetag::<A, B>()
     }
 }
 

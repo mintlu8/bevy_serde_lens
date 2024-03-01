@@ -124,6 +124,10 @@ pub fn test() {
     };
     world.save::<AnimalComponent, _>(&mut vec).unwrap();
     let result = vec.output.finalize().unwrap();
+
+    world.despawn_bound_objects::<AnimalComponent>();
+    assert_eq!(world.entities().len(), 0);
+
     let mut de = postcard::Deserializer::from_bytes(&result);
     world.load::<AnimalComponent, _>(&mut de).unwrap();
     assert_eq!(world.entities().len(), 3);

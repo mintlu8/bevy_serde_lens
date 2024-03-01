@@ -1,6 +1,4 @@
 //! Module for interning data in a [`Resource`].
-
-use std::borrow::Borrow;
 use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
 use serde::de::DeserializeOwned;
@@ -29,7 +27,7 @@ pub trait Interner<Key>: Resource {
 pub struct Interned<T: InterningKey>(T);
 
 impl<T: InterningKey> Convert<T> for Interned<T> {
-    fn ser(input: &T) -> impl Borrow<Self> {
+    fn ser(input: &T) -> &Self {
         Self::ref_cast(input)
     }
 

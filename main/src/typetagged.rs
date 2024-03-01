@@ -47,13 +47,22 @@
 //! ```
 
 
-use std::{any::type_name, borrow::Cow, marker::PhantomData};
+use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData};
 use bevy_ecs::system::Resource;
+use erased_serde::Deserializer;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
-use serde_value::ValueDeserializer;
-use serde::{de::{DeserializeOwned, Visitor}, Deserialize, Serialize};
-use crate::{BoxError, Convert, Error, SerdeProject};
+use scoped_tls::scoped_thread_local;
+use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
+use crate::Convert;
+
+scoped_thread_local! {
+    static DESERIALIZE_FUNCTIONS: TypeTagServer
+}
+
+pub(crate) fn scoped<T>(deserialize_fns: &TypeTagServer, f: impl FnOnce() -> T) -> T{
+    DESERIALIZE_FUNCTIONS.set(deserialize_fns, f)
+}
 
 /// A serializable trait object.
 #[derive(Debug, RefCast)]
@@ -61,7 +70,7 @@ use crate::{BoxError, Convert, Error, SerdeProject};
 pub struct TypeTagged<T: BevyTypeTagged>(T);
 
 impl<T: BevyTypeTagged> Convert<T> for TypeTagged<T> {
-    fn ser(input: &T) -> impl std::borrow::Borrow<Self> {
+    fn ser(input: &T) -> &Self {
         TypeTagged::ref_cast(input)
     }
 
@@ -135,92 +144,89 @@ type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, era
 
 /// A [`Resource`] that stores registered deserialization functions.
 #[derive(Resource)]
-pub struct TypeTagServer<T: BevyTypeTagged> {
-    functions: FxHashMap<&'static str, DeserializeFn<T>>,
+pub struct TypeTagServer {
+    functions: FxHashMap<(TypeId, &'static str), Box<dyn Any + Send + Sync>>,
 }
 
-impl<T: BevyTypeTagged> Default for TypeTagServer<T> {
+impl Default for TypeTagServer {
     fn default() -> Self {
-        Self { functions: FxHashMap::default() }
+        Self { 
+            functions: FxHashMap::default(),
+        }
     }
 }
 
-impl<T: BevyTypeTagged> TypeTagServer<T> {
-    pub fn get(&self, name: &str) -> Option<&DeserializeFn<T>>{
-        self.functions.get(name)
+impl TypeTagServer {
+    pub fn get<T: BevyTypeTagged>(&self, name: &str) -> Option<DeserializeFn<T>>{
+        let id = TypeId::of::<T>();
+        self.functions.get(&(id, name)).and_then(|f| f.downcast_ref()).copied()
     }
 
     pub fn clear(&mut self) {
         self.functions.clear()
     }
 
-    pub fn register<A: IntoTypeTagged<T>>(&mut self) {
-        self.functions.insert(A::name(), |de| {
+    pub fn register<T: BevyTypeTagged, A: IntoTypeTagged<T>>(&mut self) {
+        let id = TypeId::of::<T>();
+        let de_fn: DeserializeFn<T> = |de| {
             Ok(A::into_type_tagged(erased_serde::deserialize::<A>(de)?))
-        });
+        };
+        self.functions.insert((id, A::name()), Box::new(de_fn));
     }
 }
 
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct ExternallyTagged<K, V>(K, V);
-
-impl<K, V> serde::Serialize for ExternallyTagged<K, V> where K: Serialize, V: Serialize {
+impl<V> serde::Serialize for TypeTagged<V> where V: BevyTypeTagged {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(&self.0, &self.1)?;
+        map.serialize_entry(&self.0.name(), &self.0.as_serialize())?;
         map.end()
     }
 }
 
-impl<'de, K: 'de, V: 'de> serde::Deserialize<'de> for ExternallyTagged<K, V> where K: Deserialize<'de>, V: Deserialize<'de> {
+impl<'de, V: BevyTypeTagged> serde::Deserialize<'de> for TypeTagged<V> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-        deserializer.deserialize_map(ExternallyTaggedVisitor::<K, V>(PhantomData))
+        deserializer.deserialize_map(TypeTaggedVisitor::<V>(PhantomData))
     }
 }
 
-struct ExternallyTaggedVisitor<'de, K, V>(PhantomData<&'de (K, V)>);
+struct TypeTaggedVisitor<'de, V: BevyTypeTagged>(PhantomData<&'de V>);
 
-impl<'de, K, V> Visitor<'de> for ExternallyTaggedVisitor<'de, K, V> where K: Deserialize<'de>, V: Deserialize<'de>  {
-    type Value = ExternallyTagged<K, V>;
+impl<'de, V: BevyTypeTagged> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
+    type Value = TypeTagged<V>;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "externally tagged enum")
     }
 
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de>, {
-        let Some((k, v)) = map.next_entry()? else {
+        let Some(key) = map.next_key::<Cow<str>>()? else {
             return Err(serde::de::Error::custom(
                 "expected externally tagged value",
             ));
         };
-        Ok(ExternallyTagged(k, v))
+        if !DESERIALIZE_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        let Some(de_fn) = DESERIALIZE_FUNCTIONS.with(|map| {
+            map.get::<V>(&key)
+        }) else {
+            return Err(serde::de::Error::custom(format!(
+                "unregistered type-tag {}", key,
+            )));
+        };
+        map.next_value_seed(DeserializeFnSeed(de_fn, PhantomData)).map(TypeTagged)
     }
 }
 
-impl<T: BevyTypeTagged + Send + Sync + 'static> SerdeProject for TypeTagged<T> {
-    type Ctx = TypeTagServer<T>;
+pub struct DeserializeFnSeed<'de, T: BevyTypeTagged>(DeserializeFn<T>, PhantomData<&'de ()>);
 
-    type Ser<'t> = ExternallyTagged<&'static str, serde_value::Value>;
+impl<'de, T: BevyTypeTagged> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
+    type Value = T;
 
-    type De<'de> = ExternallyTagged<Cow<'de, str>, serde_value::Value>;
-
-    fn to_ser<'t>(&'t self, _: &<Self::Ctx as crate::FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
-        Ok(ExternallyTagged(
-            self.0.name(),
-            serde_value::to_value(self.0.as_serialize())
-                .map_err(|err| Error::SerializationError(err.to_string()))?
-        ))
-    }
-
-    fn from_de(ctx: &mut <Self::Ctx as crate::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
-        let f = ctx.get(&de.0).ok_or_else(||Error::UnregisteredTraitObjectType {
-            ty: type_name::<T>(),
-            name: de.0.clone().into_owned(),
-        })?;
-        let de = ValueDeserializer::<serde_value::DeserializerError>::new(de.1);
-        Ok(f(&mut <dyn erased_serde::Deserializer>::erase(de)).map(TypeTagged)
-            .map_err(|err| Error::DeserializationError(err.to_string()))?)
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
+        (self.0)(&mut <dyn Deserializer>::erase(deserializer)).map_err(serde::de::Error::custom)
     }
 }

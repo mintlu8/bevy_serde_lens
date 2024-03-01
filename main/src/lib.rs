@@ -121,11 +121,10 @@
 //! will result in an error.
 
 use std::any::type_name;
-use std::borrow::Borrow;
 use std::fmt::Display;
 
 use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
-use ref_cast::RefCast;
+pub use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -137,7 +136,6 @@ mod macros;
 pub mod typetagged;
 pub mod asset;
 pub mod interning;
-pub mod value;
 
 pub use bevy_serde_project_derive::SerdeProject;
 
@@ -308,16 +306,14 @@ impl<T> BevyObject for T where T: SerdeProject + Component {
     }
 }
 
-/// Convert a foreign type to a [`SerdeProject`] type.
+/// Newtype project a foreign type to a [`SerdeProject`] type.
 ///
 /// This is required for the `#[serde_project("MyNewType<..>")]` attribute.
 pub trait Convert<In> {
     /// Convert a reference to a [`SerdeProject`] type's reference.
     ///
-    /// A simple implementation is [`Clone`], but if
-    /// using a newtype, you might want to use a crate like [`ref_cast`] to
-    /// perform this conversion on a newtype.
-    fn ser(input: &In) -> impl Borrow<Self>;
+    /// You might want derive [`RefCast`] to perform this conversion.
+    fn ser(input: &In) -> &Self;
     /// Convert this [`SerdeProject`] type back to the original.
     fn de(self) -> In;
 }
@@ -328,7 +324,7 @@ pub trait Convert<In> {
 pub struct ProjectVec<T: FromIterator<A>, A: SerdeProject + 'static>(T) where for<'t> &'t T: IntoIterator<Item = &'t A>;
 
 impl<T: FromIterator<A>, A: SerdeProject + 'static> Convert<T> for ProjectVec<T, A> where for<'t> &'t T: IntoIterator<Item = &'t A> {
-    fn ser(input: &T) -> impl Borrow<Self> {
+    fn ser(input: &T) -> &Self {
         ProjectVec::<T, A>::ref_cast(input)
     }
 

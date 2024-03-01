@@ -2,7 +2,6 @@
 
 use std::any::type_name;
 use std::path::PathBuf;
-use std::borrow::Borrow;
 use bevy_asset::{Asset, AssetServer, Assets, Handle};
 use bevy_ecs::world::World;
 use ref_cast::RefCast;
@@ -14,7 +13,7 @@ use crate::{BoxError, Convert, Error, FromWorldAccess, SerdeProject, WorldAccess
 pub struct PathHandle<T: Asset>(Handle<T>);
 
 impl<T: Asset> Convert<Handle<T>> for PathHandle<T>{
-    fn ser(input: &Handle<T>) -> impl Borrow<Self> {
+    fn ser(input: &Handle<T>) -> &Self {
         Self::ref_cast(input)
     }
 
@@ -47,7 +46,7 @@ impl<T: Asset> SerdeProject for PathHandle<T>{
 pub struct UniqueHandle<T: Asset + SerdeProject>(Handle<T>);
 
 impl<T: Asset + SerdeProject> Convert<Handle<T>> for UniqueHandle<T>{
-    fn ser(input: &Handle<T>) -> impl Borrow<Self> {
+    fn ser(input: &Handle<T>) -> &Self {
         Self::ref_cast(input)
     }
 
