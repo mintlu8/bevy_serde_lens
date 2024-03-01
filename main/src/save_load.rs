@@ -29,7 +29,7 @@ pub trait WorldExtension {
     ///
     /// Most `serde` frontends provide a serializer, like `serde_json::Deserializer`.
     /// They typically wrap a [`std::io::Read`] and read from that stream.
-    fn load<T: SaveLoad, D: Deserializer<'static>>(&mut self, deserializer: D) -> Result<(), D::Error>;
+    fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error>;
     /// Despawn all entities in a [`BindBevyObject`] type or a group created by [`batch!`] recursively.
     fn despawn_bound_objects<T: SaveLoad>(&mut self);
     /// Register a type that can be deserialized dynamically.
@@ -41,7 +41,7 @@ impl WorldExtension for World {
         T::save(self, serializer)
     }
 
-    fn load<T: SaveLoad, D: Deserializer<'static>>(&mut self, deserializer: D) -> Result<(), D::Error> {
+    fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
         T::load(self, deserializer)
     }
 
@@ -60,7 +60,7 @@ impl WorldExtension for App {
         T::save(&mut self.world, serializer)
     }
 
-    fn load<T: SaveLoad, D: Deserializer<'static>>(&mut self, deserializer: D) -> Result<(), D::Error> {
+    fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
         T::load(&mut self.world, deserializer)
     }
 
@@ -81,7 +81,7 @@ pub trait SaveLoad: Sized {
     type Remaining: SaveLoad;
 
     fn save<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error>;
-    fn load<D: Deserializer<'static>>(world: &mut World, deserializer: D) -> Result<(), D::Error>;
+    fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error>;
     fn save_map<S: SerializeMap>(world: &mut World, serializer: &mut S) -> Result<(), S::Error>;
     fn despawn(world: &mut World);
 
@@ -116,7 +116,7 @@ impl<T> SaveLoad for T where T: BindBevyObject {
         }
     }
 
-    fn load<D: Deserializer<'static>>(world: &mut World, deserializer: D) -> Result<(), D::Error> {
+    fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error> {
         let root = T::get_root(world);
         deserializer.deserialize_seq(SingleComponentVisitor::<T>{
             world,
@@ -192,7 +192,7 @@ impl<A, B> SaveLoad for Join<A, B> where A: BindBevyObject, B: SaveLoad {
         map.end()
     }
 
-    fn load<D: Deserializer<'static>>(world: &mut World, deserializer: D) -> Result<(), D::Error> {
+    fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error> {
         deserializer.deserialize_map(MultiComponentVisitor::<Self>{
             world,
             p: PhantomData,

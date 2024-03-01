@@ -122,6 +122,7 @@ use std::borrow::Borrow;
 use std::fmt::Display;
 
 use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
+use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -175,6 +176,11 @@ pub enum Error {
         field: &'static str,
         ty: &'static str,
     },
+    #[error("Unregistered type {name} of trait object {ty}.")]
+    UnregisteredTraitObjectType {
+        ty: &'static str,
+        name: String,
+    },
     #[error("Serialization Error: {0}")]
     SerializationError(String),
     #[error("Serialization Error: {0}")]
@@ -216,9 +222,9 @@ pub trait SerdeProject: Sized {
     type De<'de>: Deserialize<'de>;
 
     /// Convert to a [`Serialize`] type.
-    fn to_ser<'t>(&'t self, ctx: <Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError>;
+    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError>;
     /// Convert from a [`Deserialize`] type.
-    fn from_de(ctx: <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError>;
+    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError>;
 }
 
 /// Alias for [`SerdeProject::Ser`].
@@ -231,11 +237,11 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     type Ser<'t> = &'t Self;
     type De<'de> = Self;
 
-    fn to_ser(&self, _: ()) -> Result<Self::Ser<'_>, BoxError> {
+    fn to_ser(&self, _: &()) -> Result<Self::Ser<'_>, BoxError> {
         Ok(self)
     }
 
-    fn from_de(_: (), de: Self::De<'_>) -> Result<Self, BoxError> {
+    fn from_de(_: &mut (), de: Self::De<'_>) -> Result<Self, BoxError> {
         Ok(de)
     }
 }
@@ -280,14 +286,15 @@ impl<T> BevyObject for T where T: SerdeProject + Component {
     fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, BoxError> {
         let state = T::Ctx::from_world(world)?;
         match world.get_entity(entity).and_then(|e| e.get::<T>()) {
-            Some(component) => component.to_ser(state).map(Some),
+            Some(component) => component.to_ser(&state).map(Some),
             None => Ok(None),
         }
     }
 
     fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-        let state = T::Ctx::from_world_mut(world)?;
-        let result = T::from_de(state, de)?;
+        let mut state = T::Ctx::from_world_mut(world)?;
+        let result = T::from_de(&mut state, de)?;
+        drop(state);
         world.entity_mut_ok(entity)?.insert(result);
         Ok(())
     }
@@ -305,6 +312,37 @@ pub trait Convert<In> {
     fn ser(input: &In) -> impl Borrow<Self>;
     /// Convert this [`SerdeProject`] type back to the original.
     fn de(self) -> In;
+}
+
+#[derive(Debug, RefCast)]
+#[repr(transparent)]
+/// A projection that serializes a [`Vec`] like container of [`SerdeProject`] types.
+pub struct ProjectVec<T: FromIterator<A>, A: SerdeProject + 'static>(T) where for<'t> &'t T: IntoIterator<Item = &'t A>;
+
+impl<T: FromIterator<A>, A: SerdeProject + 'static> Convert<T> for ProjectVec<T, A> where for<'t> &'t T: IntoIterator<Item = &'t A> {
+    fn ser(input: &T) -> impl Borrow<Self> {
+        ProjectVec::<T, A>::ref_cast(input)
+    }
+
+    fn de(self) -> T {
+        self.0
+    }
+}
+
+impl<T: FromIterator<A>, A: SerdeProject + 'static> SerdeProject for ProjectVec<T, A> where for<'t> &'t T: IntoIterator<Item = &'t A> {
+    type Ctx = A::Ctx;
+
+    type Ser<'t> = Vec<A::Ser<'t>> where T: 't;
+
+    type De<'de> = Vec<A::De<'de>>;
+
+    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
+        (&self.0).into_iter().map(|x| x.to_ser(ctx)).collect()
+    }
+
+    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
+        Ok(Self(de.into_iter().map(|de|A::from_de(ctx, de)).collect::<Result<_, _>>()?))
+    }
 }
 
 /// [`World`] functions that return a [`Result`].

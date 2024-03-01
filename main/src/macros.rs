@@ -78,16 +78,19 @@ macro_rules! bind_object {
                     $(#[$($attr)*])*
                     $field: <$ty as $crate::BevyObject>::Ser<'t>,
                 )*
+                #[serde(skip)]
                 __phantom: ::std::marker::PhantomData<&'t ()>
             }
 
             #[derive($crate::serde::Deserialize)]
+            #[serde(bound = "'t: 'de")]
             $(#[$($head_attr)*])*
             pub struct __De<'t> {
                 $(
                     $(#[$($attr)*])*
                     $field: <$ty as $crate::BevyObject>::De<'t>,
                 )*
+                #[serde(skip)]
                 __phantom: ::std::marker::PhantomData<&'t ()>
             }
     
@@ -99,7 +102,7 @@ macro_rules! bind_object {
                         $($field: <$ty as $crate::BevyObject>::to_ser(world, entity)?
                             .ok_or_else(||$crate::Error::FieldMissing {
                                 field: stringify!($field),
-                                ty: <$main as BindBevyObject>::name()
+                                ty: <$main as $crate::BindBevyObject>::name()
                             }.boxed())?,
                         )*
                         __phantom: ::std::marker::PhantomData,

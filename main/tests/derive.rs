@@ -42,6 +42,17 @@ enum MyImage {
     Handle(#[serde_project("PathHandle<Image>")] Handle<Image>)
 }
 
+#[derive(Debug, SerdeProject)]
+enum MyImage2 {
+    None,
+    Indexes(i32, u32, f32),
+    Handle(#[serde_project("PathHandle<Image>")] Handle<Image>),
+    Handles{
+        #[serde_project("PathHandle<Image>")] image1: Handle<Image>,
+        #[serde_project("PathHandle<Image>")] image2: Handle<Image>,
+    }
+}
+
 
 #[test]
 pub fn test() {

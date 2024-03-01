@@ -16,6 +16,10 @@ use quote::{format_ident, quote};
 /// 
 ///     Ignore the field and default construct it if deserialized.
 ///
+/// * `#[serde_project(rename = "new_name")]`
+/// 
+///     Top level `#[serde(rename)]` is not allowed, this attribute replaces that functionality.
+///
 /// * `#[serde(..)]`
 ///
 ///     Copied to destination.
@@ -29,7 +33,7 @@ fn into_ser(ty: &Type, expr: TokenStream) -> TokenStream {
     quote!(
         <#ty as __bsp::SerdeProject>::to_ser(
             #expr, 
-            __bsp::from_world::<#ty>(__ctx)?
+            &__bsp::from_world::<#ty>(__ctx)?
         )?
     )
 }
@@ -37,7 +41,7 @@ fn into_ser(ty: &Type, expr: TokenStream) -> TokenStream {
 fn from_de(ty: &Type, expr: TokenStream) -> TokenStream {
     quote!(
         <#ty as __bsp::SerdeProject>::from_de(
-            __bsp::from_world_mut::<#ty>(__ctx)?,
+            &mut __bsp::from_world_mut::<#ty>(__ctx)?,
             #expr
         )?
     )
@@ -92,7 +96,7 @@ fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator
             #[serde(rename = #string_name)]
             pub struct __Ser<'t> #ser_ty #sep
             #[derive(__bsp::serde::Deserialize)]
-            #[serde(rename = #string_name)]
+            #[serde(rename = #string_name, bound="'t: 'de")]
             pub struct __De<'t> #de_ty #sep
 
             impl #impl_generics __bsp::SerdeProject for #name #ty_genetics #where_clause {
@@ -101,12 +105,12 @@ fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator
                 type Ser<'s> = __Ser<'s>;
                 type De<'de> = __De<'de>;
 
-                fn to_ser<'t>(&'t self, __ctx: &__bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
+                fn to_ser<'t>(&'t self, __ctx: &&'t __bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
                     let #name #original_decomp = self;
                     Ok(__Ser #ser_construct)
                 }
 
-                fn from_de<'de>(__ctx: &mut __bsp::World, de: Self::De<'de>) -> Result<Self, Box<__bsp::Error>> {
+                fn from_de(__ctx: &mut &mut __bsp::World, de: Self::De<'_>) -> Result<Self, Box<__bsp::Error>> {
                     let __De #de_decomp = de;
                     Ok(Self #original_construct)
                 }
@@ -217,11 +221,11 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
                     type Ser<'s> = ();
                     type De<'de> = ();
 
-                    fn to_ser<'t>(&'t self, __ctx: ()) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
+                    fn to_ser<'t>(&'t self, __ctx: &()) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
                         Err(__bsp::Error::NoValidVariants.boxed())
                     }
 
-                    fn from_de<'de>(__ctx: (), de: Self::De<'de>) -> Result<Self, Box<__bsp::Error>> {
+                    fn from_de(__ctx: &mut (), de: Self::De<'_>) -> Result<Self, Box<__bsp::Error>> {
                         Err(__bsp::Error::NoValidVariants.boxed())
                     }
                 }
@@ -247,7 +251,7 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
             }
 
             #[derive(__bsp::serde::Deserialize)]
-            #[serde(rename = #string_name)]
+            #[serde(rename = #string_name, bound="'t: 'de")]
             pub enum __De<'t> {
                 #(#(#serde_attrs)* #de_fields,)*
                 #[serde(skip)]
@@ -260,14 +264,14 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
                 type Ser<'s> = __Ser<'s>;
                 type De<'de> = __De<'de>;
 
-                fn to_ser<'t>(&'t self, __ctx: &__bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
+                fn to_ser<'t>(&'t self, __ctx: &&'t __bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
                     Ok(match self {
                         #(#ser_branches,)*
                         #(#ignored_branches,)*
                     })
                 }
 
-                fn from_de<'de>(__ctx: &mut __bsp::World, de: Self::De<'de>) -> Result<Self, Box<__bsp::Error>> {
+                fn from_de(__ctx: &mut &mut __bsp::World, de: Self::De<'_>) -> Result<Self, Box<__bsp::Error>> {
                     Ok(match de {
                         #(#de_branches,)*
                         __De::__Phantom(_) => return Err(__bsp::Error::PhantomBranch.boxed())
@@ -386,10 +390,12 @@ fn parse_struct(
         Ok(ParsedStruct {
             ser_ty: quote!({
                 #(#(#serde_attrs)* #de_decomp: #ser_ty,)*
+                #[serde(skip)]
                 __p: ::std::marker::PhantomData<&'t ()>
             }),
             de_ty: quote!({
                 #(#(#serde_attrs)* #de_decomp: #de_ty,)*
+                #[serde(skip)]
                 __p: ::std::marker::PhantomData<&'t ()>
             }),
             original_decomp: quote!({

@@ -8,20 +8,19 @@ use serde::Serialize;
 use crate::{BoxError, Convert, FromWorldAccess, SerdeProject};
 
 /// A key to a value in an [`Interner`] [`Resource`].
-pub trait InterningKey: 'static {
+pub trait InterningKey: Sized + 'static {
     /// The type of value this key represents.
-    type Represents;
-    type Interner: Interner<Key=Self, Value=Self::Represents>;
+    type Value;
+    type Interner: Interner<Self, Value=Self::Value>;
 }
 
 /// A [`Resource`] that holds a pool of values accessible by a [`InterningKey`].
-pub trait Interner: Resource {
-    type Key;
+pub trait Interner<Key>: Resource {
     type Value;
 
     /// Obtain an existing value.
-    fn get(&self, key: &Self::Key) -> Result<&Self::Value, BoxError>;
-    fn add(&mut self, value: Self::Value) -> Result<Self::Key, BoxError>;
+    fn get(&self, key: &Key) -> Result<&Self::Value, BoxError>;
+    fn add(&mut self, value: Self::Value) -> Result<Key, BoxError>;
 }
 
 /// Serialize an [`InterningKey`] based on the interned value.
@@ -39,16 +38,16 @@ impl<T: InterningKey> Convert<T> for Interned<T> {
     }
 }
 
-impl<T: InterningKey> SerdeProject for Interned<T> where T::Represents: Serialize + DeserializeOwned {
+impl<T: InterningKey> SerdeProject for Interned<T> where T::Value: Serialize + DeserializeOwned {
     type Ctx = T::Interner;
-    type Ser<'t> = &'t T::Represents;
-    type De<'de> = T::Represents;
+    type Ser<'t> = &'t T::Value;
+    type De<'de> = T::Value;
 
-    fn to_ser<'t>(&'t self, ctx: <Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
+    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
         ctx.get(&self.0)
     }
 
-    fn from_de(mut ctx: <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
+    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
         Ok(Self(ctx.add(de)?))
     }
 }
