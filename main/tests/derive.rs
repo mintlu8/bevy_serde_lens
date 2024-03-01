@@ -3,6 +3,20 @@ use bevy_reflect::TypePath;
 use bevy_serde_project::SerdeProject;
 use bevy_serde_project::asset::PathHandle;
 
+// This is not allowed
+// #[derive(SerdeProject)]
+// pub struct Nil;
+
+// This just tests the derive macro.
+#[derive(SerdeProject)]
+pub struct Nil();
+
+#[derive(SerdeProject)]
+pub struct Nil2{}
+
+#[derive(SerdeProject)]
+pub enum Never{}
+
 #[derive(Debug, Clone, TypePath, Asset)]
 pub struct Image(String);
 
@@ -32,10 +46,6 @@ struct MySprite2 (
     #[serde_project("PathHandle<Image>")]
     Handle<Image>
 );
-
-#[derive(Debug, SerdeProject)]
-enum Never {}
-
 
 #[derive(Debug, SerdeProject)]
 enum MyImage {

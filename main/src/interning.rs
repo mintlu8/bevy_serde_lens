@@ -1,24 +1,23 @@
 //! Module for interning data in a [`Resource`].
 use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
-use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde::Serialize;
 use crate::{BoxError, Convert, FromWorldAccess, SerdeProject};
 
 /// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
-    /// The type of value this key represents.
-    type Value;
-    type Interner: Interner<Self, Value=Self::Value>;
+    type Interner: Interner<Self>;
 }
 
 /// A [`Resource`] that holds a pool of values accessible by a [`InterningKey`].
 pub trait Interner<Key>: Resource {
-    type Value;
+    type ValueRef<'t>;
+    type Value<'de>;
 
     /// Obtain an existing value.
-    fn get(&self, key: &Key) -> Result<&Self::Value, BoxError>;
-    fn add(&mut self, value: Self::Value) -> Result<Key, BoxError>;
+    fn get(&self, key: &Key) -> Result<Self::ValueRef<'_>, BoxError>;
+    fn add(&mut self, value: Self::Value<'_>) -> Result<Key, BoxError>;
 }
 
 /// Projection of an [`InterningKey`] that serializes the interned value.
@@ -36,10 +35,12 @@ impl<T: InterningKey> Convert<T> for Interned<T> {
     }
 }
 
-impl<T: InterningKey> SerdeProject for Interned<T> where T::Value: Serialize + DeserializeOwned {
+impl<T: InterningKey> SerdeProject for Interned<T> where
+        for<'t> <T::Interner as Interner<T>>::ValueRef<'t>: Serialize,
+        for<'de> <T::Interner as Interner<T>>::Value<'de>: Deserialize<'de> {
     type Ctx = T::Interner;
-    type Ser<'t> = &'t T::Value;
-    type De<'de> = T::Value;
+    type Ser<'t> = <T::Interner as Interner<T>>::ValueRef<'t>;
+    type De<'de> = <T::Interner as Interner<T>>::Value<'de>;
 
     fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
         ctx.get(&self.0)

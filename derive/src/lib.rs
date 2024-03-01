@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::{abort, proc_macro_error};
-use syn::{spanned::Spanned, DeriveInput, Ident, LitStr, Type, Generics, Error, Attribute, Field, DataEnum};
+use syn::{spanned::Spanned, Attribute, DataEnum, DeriveInput, Error, Expr, Field, Generics, Ident, Lit, LitStr, MetaNameValue, Type};
 use quote::{format_ident, quote};
 
 /// Project a struct to and from a (de)serializable struct using `World` access.
@@ -51,6 +51,7 @@ fn derive_project2(stream: TokenStream) -> Result<TokenStream, syn::Error> {
     let input = syn::parse2::<DeriveInput>(stream)?;
     let generics = input.generics;
     let name = input.ident;
+    let attrs = input.attrs;
     Ok(match input.data {
         syn::Data::Union(union) => {
             abort!(union.union_token.span, "Union is not supported")
@@ -60,21 +61,23 @@ fn derive_project2(stream: TokenStream) -> Result<TokenStream, syn::Error> {
                 abort!(Span::call_site(), "'SerdeProject' is not needed on a unit struct.\nPlease derive or implement 'Serialize' and 'Deserialize' directly.")
             },
             syn::Fields::Named(named_fields) => {
-                parse_struct_input(name, generics, named_fields.named, true)?
+                parse_struct_input(name, generics, attrs, named_fields.named, true)?
             },
             syn::Fields::Unnamed(unnamed_fields) => {
-                parse_struct_input(name, generics, unnamed_fields.unnamed, false)?
+                parse_struct_input(name, generics, attrs, unnamed_fields.unnamed, false)?
             },
         },
         syn::Data::Enum(data_enum) => {
-            parse_enum(name, generics, data_enum)?
+            parse_enum(name, generics, attrs, data_enum)?
         },
     })
 }
 
-fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator<Item=Field>, named: bool) -> Result<TokenStream, Error> {
+fn parse_struct_input(name: Ident, generics: Generics, attrs: Vec<Attribute>, fields: impl IntoIterator<Item=Field>, named: bool) -> Result<TokenStream, Error> {
     let (impl_generics, ty_genetics, where_clause) = generics.split_for_impl();
 
+    let (name_str, head_attrs) = parse_head_attrs(attrs)?;
+    let name_str = name_str.unwrap_or(LitStr::new(&name.to_string(), name.span()));
     let ParsedStruct {
         ser_ty, 
         de_ty, 
@@ -84,7 +87,6 @@ fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator
         original_construct 
     } = parse_struct(fields, named)?;
 
-    let string_name = name.to_string();
     let sep = if named {quote!()} else {quote!(;)};
 
     Ok(quote!(
@@ -93,10 +95,12 @@ fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator
             use ::core::borrow::Borrow;
             use ::bevy_serde_project as __bsp;
             #[derive(__bsp::serde::Serialize)]
-            #[serde(rename = #string_name)]
+            #(#head_attrs)*
+            #[serde(rename = #name_str)]
             pub struct __Ser<'t> #ser_ty #sep
             #[derive(__bsp::serde::Deserialize)]
-            #[serde(rename = #string_name, bound="'t: 'de")]
+            #(#head_attrs)*
+            #[serde(rename = #name_str, bound="'t: 'de")]
             pub struct __De<'t> #de_ty #sep
 
             impl #impl_generics __bsp::SerdeProject for #name #ty_genetics #where_clause {
@@ -119,8 +123,11 @@ fn parse_struct_input(name: Ident, generics: Generics, fields: impl IntoIterator
     ))
 }
 
-fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<TokenStream, Error> {
+fn parse_enum(name: Ident, generics: Generics, attrs: Vec<Attribute>, variants: DataEnum) -> Result<TokenStream, Error> {
     let (impl_generics, ty_genetics, where_clause) = generics.split_for_impl();
+
+    let (name_str, head_attrs) = parse_head_attrs(attrs)?;
+    let name_str = name_str.unwrap_or(LitStr::new(&name.to_string(), name.span()));
 
     let mut ser_fields = Vec::new();
     let mut de_fields = Vec::new();
@@ -233,8 +240,6 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
             
         ));
     }
-
-    let string_name = name.to_string();
     
     Ok(quote!(
         #[allow(unused)]
@@ -243,7 +248,8 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
             use ::bevy_serde_project as __bsp;
 
             #[derive(__bsp::serde::Serialize)]
-            #[serde(rename = #string_name)]
+            #(#head_attrs)*
+            #[serde(rename = #name_str)]
             pub enum __Ser<'t> {
                 #(#(#serde_attrs)* #ser_fields,)*
                 #[serde(skip)]
@@ -251,7 +257,8 @@ fn parse_enum(name: Ident, generics: Generics, variants: DataEnum) -> Result<Tok
             }
 
             #[derive(__bsp::serde::Deserialize)]
-            #[serde(rename = #string_name, bound="'t: 'de")]
+            #(#head_attrs)*
+            #[serde(rename = #name_str, bound="'t: 'de")]
             pub enum __De<'t> {
                 #(#(#serde_attrs)* #de_fields,)*
                 #[serde(skip)]
@@ -323,6 +330,37 @@ fn parse_attrs(attrs: Vec<Attribute>) -> syn::Result<(AttrResult, Vec<Attribute>
         } else {
             abort!(attr.span(), "Unable to parse this attribute.")
         }
+    }
+    Ok((result, serde_attrs))
+}
+
+
+fn parse_head_attrs(attrs: Vec<Attribute>) -> syn::Result<(Option<LitStr>, Vec<Attribute>)> {
+    let mut serde_attrs = Vec::new();
+    let mut result = None;
+    for attr in attrs {
+        if attr.meta.path().is_ident("serde") {
+            serde_attrs.push(attr);
+            continue;
+        }
+        if !attr.meta.path().is_ident("serde_project") {
+            continue;
+        }
+        if result.is_none() {
+            abort!(attr.span(), "Repeat `serde_project` attributes are not allowed.")
+        }
+        let meta_list = attr.meta.require_list()?;
+        let name_value = meta_list.parse_args::<MetaNameValue>()?;
+        
+        if name_value.path.is_ident("parse") {
+            if let Expr::Lit(lit) = name_value.value {
+                if let Lit::Str(str) = lit.lit {
+                    result = Some(str);
+                    continue;
+                }
+            }
+        } 
+        abort!(attr.span(), "Unable to parse this attribute.")
     }
     Ok((result, serde_attrs))
 }

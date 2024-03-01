@@ -1,8 +1,8 @@
-//! A pretty and structural validating serialization crate for the bevy engine.
+//! A pretty and structural serialization crate for the bevy engine.
 //!
 //! # Features
 //!
-//! * Serialize and deserialize structs with world access.
+//! * Stateful serialization and deserialization with world access.
 //! * Treat an [`Entity`], its [`Component`]s and children as a single serde object.
 //! * Serialize [`Handle`]s and provide a generalized data interning interface.
 //! * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
@@ -124,7 +124,7 @@ use std::any::type_name;
 use std::fmt::Display;
 
 use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
-pub use ref_cast::RefCast;
+use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -312,7 +312,7 @@ impl<T> BevyObject for T where T: SerdeProject + Component {
 pub trait Convert<In> {
     /// Convert a reference to a [`SerdeProject`] type's reference.
     ///
-    /// You might want derive [`RefCast`] to perform this conversion.
+    /// You might want derive [`ref_cast`] to perform this conversion.
     fn ser(input: &In) -> &Self;
     /// Convert this [`SerdeProject`] type back to the original.
     fn de(self) -> In;

@@ -27,7 +27,7 @@
 //!     ...
 //! }
 //!
-//! // Register specific implementations  on the `World`
+//! // Register specific implementations on the `World`
 //! fn my_main() {
 //!     ..
 //!     app.register_typetag::<Box<dyn<Stat>>, StatA>   
@@ -35,7 +35,7 @@
 //! }
 //! ```
 //!
-//! Then derive [`SerdeProject`] on `StatEntry`:
+//! Then derive [`SerdeProject`](::bevy_serde_project_derive::SerdeProject) on `StatEntry`:
 //!
 //! ```
 //! #[derive(SerdeProject)]
