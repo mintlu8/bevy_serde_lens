@@ -84,7 +84,6 @@ pub trait SaveLoad: Sized {
     fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error>;
     fn save_map<S: SerializeMap>(world: &mut World, serializer: &mut S) -> Result<(), S::Error>;
     fn despawn(world: &mut World);
-
 }
 
 impl<T> SaveLoad for T where T: BindBevyObject {
@@ -95,20 +94,24 @@ impl<T> SaveLoad for T where T: BindBevyObject {
 
     fn save<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
         let mut err = None;
-        let ser = serializer.collect_seq(
-            world.query_filtered::<Entity, With<T>>()
-                .iter(world)
-                .filter_map(|entity| <T::BevyObject as BevyObject>::to_ser(world, entity).transpose())
-                .map_while(|result| {
-                    match result {
-                        Ok(some) => Some(some),
-                        Err(e) => { 
-                            err = Some(e);
-                            None
-                        },
-                    }
-                } )
-        );
+        let mut query = world.query_filtered::<Entity, With<T>>();
+        let iter = query
+            .iter(world)
+            .filter_map(|entity| <T::BevyObject as BevyObject>::to_ser(world, entity).transpose())
+            .map_while(|result| {
+                match result {
+                    Ok(some) => Some(some),
+                    Err(e) => { 
+                        err = Some(e);
+                        None
+                    },
+                }
+            });
+        let ser = if serializer.is_human_readable() || Some(iter.size_hint().0) == iter.size_hint().1 {
+            serializer.collect_seq(iter)
+        } else {
+            iter.into_iter().collect::<Vec<_>>().serialize(serializer)
+        };
         if let Some(err) = err {
             Err(serde::ser::Error::custom(err))
         } else {

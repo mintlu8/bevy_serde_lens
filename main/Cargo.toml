@@ -32,4 +32,5 @@ bevy_serde_project_derive = { version = "0.1.0", path = "../derive" }
 
 [dev-dependencies]
 bevy_reflect = "0.13.0"
+postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 serde_json = "1.0.114"

@@ -137,6 +137,7 @@ mod macros;
 pub mod typetagged;
 pub mod asset;
 pub mod interning;
+pub mod value;
 
 pub use bevy_serde_project_derive::SerdeProject;
 

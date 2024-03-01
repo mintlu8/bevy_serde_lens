@@ -1,6 +1,7 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_serde_project::{bind_object, SerdeProject, WorldExtension};
 use bevy_serde_project::typetagged::{BevyTypeTagged, IntoTypeTagged, TypeTagged};
+use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -109,6 +110,22 @@ pub fn test() {
     world.despawn_bound_objects::<AnimalComponent>();
     assert_eq!(world.entities().len(), 0);
     world.load::<AnimalComponent, _>(&value).unwrap();
+    assert_eq!(world.entities().len(), 3);
+
+    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
+    assert_eq!(value, json!([
+        {"animal": {"Dog": {"name": "Rex"}}}, 
+        {"animal": {"Bird": "bevy"}}, 
+        {"animal": {"Turtle": null}}, 
+    ]));
+
+    let mut vec = postcard::Serializer{
+        output: postcard::ser_flavors::AllocVec::new(),
+    };
+    world.save::<AnimalComponent, _>(&mut vec).unwrap();
+    let result = vec.output.finalize().unwrap();
+    let mut de = postcard::Deserializer::from_bytes(&result);
+    world.load::<AnimalComponent, _>(&mut de).unwrap();
     assert_eq!(world.entities().len(), 3);
 
     let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();

@@ -1,14 +1,6 @@
 #[allow(unused)]
 use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! parse_name {
-    ($orig: ty) => { ::std::any::type_name::<$orig>() };
-    ($orig: ty as $lit: literal) => { $lit };
-    ($orig: ty as $ident: ident) => { stringify!($ident) };
-}
-
 /// Bind a [`BevyObject`] to a [`Component`].
 ///
 /// The type is unnameable but can be accessed via [`BindBevyObject::BevyObject`]
@@ -17,8 +9,7 @@ macro_rules! parse_name {
 /// # Syntax
 ///
 /// ```
-/// // `as "string"`` or `as ident` sets the serialized name,
-/// // if not set this is `std::any::type_name()`.
+/// // `as "Name"` sets the serialized type name.
 /// bind_object!(Weapon as "weapon" {
 ///     // `serde` attributes are allowed.
 ///     #[serde(flatten)]
@@ -30,6 +21,7 @@ macro_rules! parse_name {
 ///     // Without Maybe not finding `CustomName` would be an error.
 ///     custom_name => Maybe<CustomName>,
 ///     // Find and serialize all components `Enchant` in children like a `Vec`.
+///     #[serde(default, skip_serializing_if = "Vec::None")]
 ///     enchants => ChildVec<Enchant>,
 ///     // Find and serialize all `BevyObject`s `Gem` in children like a `Vec`.
 ///     // Note without `Object` we would serialize components `Gem` instead.
@@ -38,6 +30,13 @@ macro_rules! parse_name {
 ///     // Errors if more than one found.
 ///     forge => Child<Maybe<Forge>>,
 /// });
+/// ```
+///
+/// Or just bind a component to itself:
+///
+/// ```
+/// // This is required for serializing `Weapon` directly.
+/// bind_object!(Weapon as "weapon");
 /// ```
 ///
 /// # Note
@@ -50,13 +49,26 @@ macro_rules! parse_name {
 ///
 /// For example 
 /// ```
-/// #[serde(default, skip_deserializing_if = "Option::None")]
+/// #[serde(default, skip_serializing_if = "Option::None")]
 /// ```
 /// can be used to skip a [`Maybe`] field if None, but this will
 /// break non-self-describing formats.
 #[macro_export]
 macro_rules! bind_object {
-    ($(#[$($head_attr: tt)*])* $main: ty $(as $name: tt)? {
+    ($(#[$($head_attr: tt)*])* $main: ty as $name: literal) => {
+        #[allow(unused)]
+        const _: () = {
+            impl $crate::BindBevyObject for $main {
+                type BevyObject = $main;
+
+                fn name() -> &'static str {
+                    $name
+                }
+            }
+        };
+    };
+
+    ($(#[$($head_attr: tt)*])* $main: ty as $name: literal {
         $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
     }) => {
         #[allow(unused)]
@@ -65,13 +77,14 @@ macro_rules! bind_object {
                 type BevyObject = __BoundObject;
 
                 fn name() -> &'static str {
-                    $crate::parse_name!($main $(as $name)?)
+                    $name
                 }
             }
 
             pub struct __BoundObject;
 
             #[derive($crate::serde::Serialize)]
+            #[serde(rename = $name)]
             $(#[$($head_attr)*])*
             pub struct __Ser<'t> {
                 $(
@@ -83,7 +96,7 @@ macro_rules! bind_object {
             }
 
             #[derive($crate::serde::Deserialize)]
-            #[serde(bound = "'t: 'de")]
+            #[serde(rename = $name, bound = "'t: 'de")]
             $(#[$($head_attr)*])*
             pub struct __De<'t> {
                 $(
@@ -147,8 +160,15 @@ macro_rules! batch {
 #[derive(Debug, Clone, Copy, crate::Component, crate::Serialize, crate::Deserialize)]
 struct A;
 
-bind_object!(A {
+
+#[derive(Debug, Clone, Copy, crate::Component, crate::Serialize, crate::Deserialize)]
+struct B;
+
+bind_object!(A as "A"{
     this => A,
     #[serde(flatten)]
     other => crate::Child<A>,
 });
+
+
+bind_object!(B as "B");
