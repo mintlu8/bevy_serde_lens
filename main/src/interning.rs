@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use crate::{BoxError, Convert, FromWorldAccess, SerdeProject};
 
-/// A key to a value in an [`Interner`] [`Resource`].
+/// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
     /// The type of value this key represents.
     type Value;
@@ -23,7 +23,7 @@ pub trait Interner<Key>: Resource {
     fn add(&mut self, value: Self::Value) -> Result<Key, BoxError>;
 }
 
-/// Serialize an [`InterningKey`] based on the interned value.
+/// Projection of an [`InterningKey`] that serializes the interned value.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, RefCast)]
 #[repr(transparent)]
 pub struct Interned<T: InterningKey>(T);

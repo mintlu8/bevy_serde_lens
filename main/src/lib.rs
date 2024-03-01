@@ -189,10 +189,14 @@ pub enum Error {
     SkippedVariant(&'static str),
     #[error("{0}")]
     CustomError(String),
-    #[error("Trying to deserialize a Handle without an associated path.")]
-    PathlessHandle,
-    #[error("Asset missing.")]
-    AssetMissing,
+    #[error("Handle<{ty}> does not have an associated path.")]
+    PathlessHandle{
+        ty: &'static str
+    },
+    #[error("Associated Asset of Handle<{ty}> missing.")]
+    AssetMissing{
+        ty: &'static str
+    },
     #[error("'__Phantom' branch deserialized, this is impossible.")]
     PhantomBranch,
     #[error("Trying to serialize/deserialize a enum with no valid variants.")]
