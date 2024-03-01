@@ -11,14 +11,17 @@
 //!
 //! Assume all components are [`Serialize`] and [`DeserializeOwned`].
 //!
-//! Serialize an [`Entity`] Character with some components:
+//! Serialize an [`Entity`] Character with some components and children:
 //! ```
 //! bind_object!(Character {
 //!     #[serde(flatten)]
 //!     character: Character,
 //!     position: Position,
+//!     #[serde(default, skip_serializing_if="Option::is_none")]
 //!     weapon: Maybe<Weapon>,
-//!     inventory: Maybe<Inventory>,
+//!     shield: Maybe<Shield>,
+//!     #[serde(default, skip_serializing_if="Vec::is_empty")]
+//!     potions: ChildVec<Potion>,
 //! })
 //! ```
 //! 
@@ -127,7 +130,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
 mod extractors;
-pub use extractors::{Object, Maybe, Child, ChildUnchecked, ChildList};
+pub use extractors::{Object, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
 mod save_load;
 pub use save_load::{WorldExtension, Join};
 mod macros;
@@ -162,10 +165,10 @@ pub enum Error {
         entity: Entity,
         ty: &'static str,
     },
-    #[error("ChildList extractor of {ty} encountered 'None', \
-       queries from a valid root component should only return 'Error', not 'None'.")]
-    ChildrenReturnedNone{
-        ty: &'static str,
+    #[error("ChildMap<{key}, {value}> found key with missing value.")]
+    KeyNoValue{
+        key: &'static str,
+        value: &'static str,
     },
     #[error("Resource {ty} not found.")]
     ResourceNotFound{

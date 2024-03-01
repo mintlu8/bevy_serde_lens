@@ -30,10 +30,10 @@ macro_rules! parse_name {
 ///     // Without Maybe not finding `CustomName` would be an error.
 ///     custom_name => Maybe<CustomName>,
 ///     // Find and serialize all components `Enchant` in children like a `Vec`.
-///     enchants => ChildList<Enchant>,
+///     enchants => ChildVec<Enchant>,
 ///     // Find and serialize all `BevyObject`s `Gem` in children like a `Vec`.
 ///     // Note without `Object` we would serialize components `Gem` instead.
-///     gems => ChildList<Object<Gem>>,
+///     gems => ChildVec<Object<Gem>>,
 ///     // Find zero or one component `Forge` in children as an `Option<Forge>`.
 ///     // Errors if more than one found.
 ///     forge => Child<Maybe<Forge>>,
@@ -98,6 +98,10 @@ macro_rules! bind_object {
                 type Ser<'t> = __Ser<'t>;
                 type De<'de> = __De<'de>;
                 fn to_ser(world: & $crate::World, entity: $crate::Entity) -> Result<Option<Self::Ser<'_>>, Box<$crate::Error>> {
+                    // Returns `None` is primary component not found, error otherwise.
+                    if world.get_entity(entity).and_then(|e| e.get::<$main>()).is_none() {
+                        return Ok(None);
+                    }
                     Ok(Some(__Ser {
                         $($field: <$ty as $crate::BevyObject>::to_ser(world, entity)?
                             .ok_or_else(||$crate::Error::FieldMissing {
