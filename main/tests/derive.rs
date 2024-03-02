@@ -2,7 +2,6 @@ use bevy_asset::{Asset, Handle};
 use bevy_reflect::TypePath;
 use bevy_serde_project::SerdeProject;
 use bevy_serde_project::asset::PathHandle;
-
 // This is not allowed
 // #[derive(SerdeProject)]
 // pub struct Nil;
@@ -55,7 +54,9 @@ enum MyImage {
 #[derive(Debug, SerdeProject)]
 enum MyImage2 {
     None,
+    Nah,
     Indexes(i32, u32, f32),
+    Numbers(Vec<i32>),
     Handle(#[serde_project("PathHandle<Image>")] Handle<Image>),
     Handles{
         #[serde_project("PathHandle<Image>")] image1: Handle<Image>,

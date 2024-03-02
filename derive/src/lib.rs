@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::{abort, proc_macro_error};
-use syn::{spanned::Spanned, Attribute, DataEnum, DeriveInput, Error, Expr, Field, Generics, Ident, Lit, LitStr, MetaNameValue, Type};
+use syn::{parse_quote, spanned::Spanned, Attribute, DataEnum, DeriveInput, Error, Expr, Field, Generics, Ident, Lit, LitStr, MetaNameValue, Type};
 use quote::{format_ident, quote};
 
 /// Project a struct to and from a (de)serializable struct using `World` access.
@@ -23,6 +23,10 @@ use quote::{format_ident, quote};
 /// * `#[serde(..)]`
 ///
 ///     Copied to destination.
+///
+/// # Note
+///
+/// This macro currently does not support generics.
 #[proc_macro_error]
 #[proc_macro_derive(SerdeProject, attributes(serde_project, serde))]
 pub fn derive_project(stream: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -89,6 +93,12 @@ fn parse_struct_input(name: Ident, generics: Generics, attrs: Vec<Attribute>, fi
 
     let sep = if named {quote!()} else {quote!(;)};
 
+    let mut derived_generics = generics.clone();
+    derived_generics.params.insert(0, parse_quote!('__sp));
+    derived_generics.lt_token = Some(Default::default());
+    derived_generics.gt_token = Some(Default::default());
+    let derived_generics = derived_generics.split_for_impl().1;
+
     Ok(quote!(
         #[allow(unused)]
         const _: () = {
@@ -97,19 +107,19 @@ fn parse_struct_input(name: Ident, generics: Generics, attrs: Vec<Attribute>, fi
             #[derive(__bsp::serde::Serialize)]
             #(#head_attrs)*
             #[serde(rename = #name_str)]
-            pub struct __Ser<'t> #ser_ty #sep
+            pub struct __Ser #derived_generics #ser_ty #sep
             #[derive(__bsp::serde::Deserialize)]
             #(#head_attrs)*
-            #[serde(rename = #name_str, bound="'t: 'de")]
-            pub struct __De<'t> #de_ty #sep
+            #[serde(rename = #name_str, bound="'__sp: 'de")]
+            pub struct __De #derived_generics #de_ty #sep
 
             impl #impl_generics __bsp::SerdeProject for #name #ty_genetics #where_clause {
                 type Ctx = __bsp::WorldAccess;
 
-                type Ser<'s> = __Ser<'s>;
-                type De<'de> = __De<'de>;
+                type Ser<'__sp> = __Ser #derived_generics;
+                type De<'__sp> = __De #derived_generics;
 
-                fn to_ser<'t>(&'t self, __ctx: &&'t __bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
+                fn to_ser<'__sp>(&'__sp self, __ctx: &&'__sp __bsp::World) -> Result<Self::Ser<'__sp>, Box<__bsp::Error>> {
                     let #name #original_decomp = self;
                     Ok(__Ser #ser_construct)
                 }
@@ -136,6 +146,12 @@ fn parse_enum(name: Ident, generics: Generics, attrs: Vec<Attribute>, variants: 
     let mut de_branches = Vec::new();
     let mut ignored_branches = Vec::new();
     let mut serde_attrs = Vec::new();
+
+    let mut derived_generics = generics.clone();
+    derived_generics.params.insert(0, parse_quote!('__sp));
+    derived_generics.lt_token = Some(Default::default());
+    derived_generics.gt_token = Some(Default::default());
+    let derived_generics = derived_generics.split_for_impl().1;
 
     for variant in variants.variants {
         let (attr_result, serde_result) = parse_attrs(variant.attrs)?;
@@ -250,28 +266,28 @@ fn parse_enum(name: Ident, generics: Generics, attrs: Vec<Attribute>, variants: 
             #[derive(__bsp::serde::Serialize)]
             #(#head_attrs)*
             #[serde(rename = #name_str)]
-            pub enum __Ser<'t> {
+            pub enum __Ser #derived_generics {
                 #(#(#serde_attrs)* #ser_fields,)*
                 #[serde(skip)]
-                __Phantom(&'t ::std::convert::Infallible)
+                __Phantom(&'__sp ::std::convert::Infallible)
             }
 
             #[derive(__bsp::serde::Deserialize)]
             #(#head_attrs)*
-            #[serde(rename = #name_str, bound="'t: 'de")]
-            pub enum __De<'t> {
+            #[serde(rename = #name_str, bound="'__sp: 'de")]
+            pub enum __De #derived_generics {
                 #(#(#serde_attrs)* #de_fields,)*
                 #[serde(skip)]
-                __Phantom(&'t ::std::convert::Infallible)
+                __Phantom(&'__sp ::std::convert::Infallible)
             }
 
             impl #impl_generics __bsp::SerdeProject for #name #ty_genetics #where_clause {
                 type Ctx = __bsp::WorldAccess;
 
-                type Ser<'s> = __Ser<'s>;
-                type De<'de> = __De<'de>;
+                type Ser<'__sp> = __Ser #derived_generics;
+                type De<'__sp> = __De #derived_generics;
 
-                fn to_ser<'t>(&'t self, __ctx: &&'t __bsp::World) -> Result<Self::Ser<'t>, Box<__bsp::Error>> {
+                fn to_ser<'__sp>(&'__sp self, __ctx: &&'__sp __bsp::World) -> Result<Self::Ser<'__sp>, Box<__bsp::Error>> {
                     Ok(match self {
                         #(#ser_branches,)*
                         #(#ignored_branches,)*
@@ -403,8 +419,8 @@ fn parse_struct(
                 let ty = field.ty;
                 de_decomp.push(name.clone());
                 serde_attrs.push(serde_attrs_field);
-                ser_ty.push(quote!(__bsp::Ser<'t, #ty>));
-                de_ty.push(quote!(__bsp::De<'t, #ty>));
+                ser_ty.push(quote!(__bsp::Ser<'__sp, #ty>));
+                de_ty.push(quote!(__bsp::De<'__sp, #ty>));
                 ser_construct.push(into_ser(&ty, quote!(#name)));
                 original_construct.push(from_de(&ty, quote!(#name)));
             },
@@ -412,8 +428,8 @@ fn parse_struct(
                 let src_ty = field.ty;
                 de_decomp.push(name.clone());
                 serde_attrs.push(serde_attrs_field);
-                ser_ty.push(quote!(__bsp::Ser<'t, #ty>));
-                de_ty.push(quote!(__bsp::De<'t, #ty>));
+                ser_ty.push(quote!(__bsp::Ser<'__sp, #ty>));
+                de_ty.push(quote!(__bsp::De<'__sp, #ty>));
                 ser_construct.push(into_ser(&ty, quote!(
                     <#ty as __bsp::Convert<#src_ty>>::ser(#name).borrow()
                 )));
@@ -429,12 +445,12 @@ fn parse_struct(
             ser_ty: quote!({
                 #(#(#serde_attrs)* #de_decomp: #ser_ty,)*
                 #[serde(skip)]
-                __p: ::std::marker::PhantomData<&'t ()>
+                __p: ::std::marker::PhantomData<&'__sp ()>
             }),
             de_ty: quote!({
                 #(#(#serde_attrs)* #de_decomp: #de_ty,)*
                 #[serde(skip)]
-                __p: ::std::marker::PhantomData<&'t ()>
+                __p: ::std::marker::PhantomData<&'__sp ()>
             }),
             original_decomp: quote!({
                 #(#original_decomp,)*
@@ -455,11 +471,11 @@ fn parse_struct(
         Ok(ParsedStruct {
             ser_ty: quote!((
                 #(#ser_ty,)*
-                ::std::marker::PhantomData<&'t ()>
+                ::std::marker::PhantomData<&'__sp ()>
             )),
             de_ty: quote!((
                 #(#de_ty,)*
-                ::std::marker::PhantomData<&'t ()>
+                ::std::marker::PhantomData<&'__sp ()>
             )),
             original_decomp: quote!((
                 #(#original_decomp,)*

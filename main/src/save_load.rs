@@ -256,6 +256,25 @@ impl<'a, 'de, T: BindBevyObject> DeserializeSeed<'de> for &'_ mut SingleComponen
     }
 }
 
+
+pub struct SingleComponentSeed<'t, T: BindBevyObject> {
+    world: &'t mut World,
+    root: Option<Entity>,
+    p: PhantomData<T>
+}
+
+
+impl<'a, 'de, T: BindBevyObject> DeserializeSeed<'de> for &'_ mut SingleComponentSeed<'a, T>{
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+        deserializer.deserialize_seq(SingleComponentVisitor {
+            world: self.world,
+            root: self.root,
+            p: self.p
+        })
+    }
+}
 pub struct MultiComponentVisitor<'t, T: SaveLoad> {
     world: &'t mut World,
     p: PhantomData<T>
@@ -265,7 +284,7 @@ impl<'t, 'de, T: SaveLoad> MultiComponentVisitor<'t, T> {
     fn visit_map_single<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error> where A: MapAccess<'de>, {
         if <T::First as BindBevyObject>::name() == key {
             let root = <T::First as BindBevyObject>::get_root(self.world);
-            map.next_value_seed(&mut SingleComponentVisitor {
+            map.next_value_seed(&mut SingleComponentSeed {
                 world: self.world,
                 root,
                 p: PhantomData::<T::First>,

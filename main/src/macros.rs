@@ -153,7 +153,7 @@ macro_rules! batch {
         $crate::Join<$a, $b>
     };
     ($first: ty $(,$ty: ty)* $(,)?) => {
-        $crate::Join<$a, $crate::join_types!($($ty)*)>
+        $crate::Join<$first, $crate::batch!($($ty),*)>
     };
 }
 
