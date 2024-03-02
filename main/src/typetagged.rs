@@ -143,17 +143,9 @@ pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
 type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, erased_serde::Error>;
 
 /// A [`Resource`] that stores registered deserialization functions.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct TypeTagServer {
     functions: FxHashMap<(TypeId, &'static str), Box<dyn Any + Send + Sync>>,
-}
-
-impl Default for TypeTagServer {
-    fn default() -> Self {
-        Self { 
-            functions: FxHashMap::default(),
-        }
-    }
 }
 
 impl TypeTagServer {

@@ -156,19 +156,3 @@ macro_rules! batch {
         $crate::Join<$first, $crate::batch!($($ty),*)>
     };
 }
-
-#[derive(Debug, Clone, Copy, crate::Component, crate::Serialize, crate::Deserialize)]
-struct A;
-
-
-#[derive(Debug, Clone, Copy, crate::Component, crate::Serialize, crate::Deserialize)]
-struct B;
-
-bind_object!(A as "A"{
-    this => A,
-    #[serde(flatten)]
-    other => crate::Child<A>,
-});
-
-
-bind_object!(B as "B");
