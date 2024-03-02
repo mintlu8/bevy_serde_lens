@@ -1,4 +1,8 @@
-# bevy-serde-project
+# bevy_serde_project
+
+[![Crates.io](https://img.shields.io/crates/v/bevy_serde_project.svg)](https://crates.io/crates/bevy_serde_project)
+[![Docs](https://docs.rs/bevy_rectray/badge.svg)](https://docs.rs/bevy_serde_project/latest/bevy_serde_project/)
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
 A pretty and structural serialization crate for the bevy engine.
 

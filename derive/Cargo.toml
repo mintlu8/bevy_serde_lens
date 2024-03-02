@@ -3,6 +3,14 @@ name = "bevy_serde_project_derive"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+repository = "https://github.com/mintlu8/bevy_serde_project"
+description = """
+Derive macro for 'bevy_serde_project'.
+"""
+
 [lib]
 proc-macro = true
 
