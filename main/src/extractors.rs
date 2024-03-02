@@ -25,11 +25,9 @@ impl<T> BevyObject for Maybe<T> where T: BevyObject {
         Ok(Some(T::to_ser(world, entity)?))
     }
 
-    fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-        let entity = world.spawn(()).id();
+    fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
         let Some(de) = de else {return Ok(())};
         T::from_de(world, entity, de)?;
-        world.entity_mut_ok(parent)?.add_child(entity);
         Ok(())
     }
 }
