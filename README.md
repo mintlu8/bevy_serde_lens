@@ -85,7 +85,7 @@ any such `Component` is automatically a `BevyObject`.
 
 This comes with the downside that we cannot implement `SerdeProject` on any foreign
 type due to the orphan rule.
-This is where `Convert` and the `SerdeProject`(bevy_serde_project_derive::SerdeProject)
+This is where `Convert` and the `SerdeProject`
 macro comes in handy.
 
 ### `FromWorldAccess`
