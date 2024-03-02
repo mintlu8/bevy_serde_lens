@@ -228,9 +228,9 @@ pub trait SerdeProject: Sized {
     type De<'de>: Deserialize<'de>;
 
     /// Convert to a [`Serialize`] type.
-    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError>;
+    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<Error>>;
     /// Convert from a [`Deserialize`] type.
-    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError>;
+    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>>;
 }
 
 /// Alias for [`SerdeProject::Ser`].
@@ -278,9 +278,9 @@ pub trait BevyObject {
 
     /// Convert to a [`Serialize`] type, returns [`None`] only if the entity is not found.
     #[allow(clippy::wrong_self_convention)]
-    fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, BoxError>;
+    fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>>;
     /// Convert from a [`Deserialize`] type.
-    fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), BoxError>;
+    fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), Box<Error>>;
 }
 
 

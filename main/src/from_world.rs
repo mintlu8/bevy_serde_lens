@@ -1,5 +1,5 @@
 use bevy_ecs::{system::Resource, world::{Mut, World}};
-use crate::{BoxError, SerdeProject, WorldUtil};
+use crate::{BoxError, Error, SerdeProject, WorldUtil};
 
 /// Represents no context.
 #[derive(Debug, Clone, Copy, Default)]
@@ -17,8 +17,8 @@ pub trait FromWorldAccess {
     type Ref<'t>;
     type Mut<'t>;
 
-    fn from_world(world: &World) -> Result<Self::Ref<'_>, BoxError>;
-    fn from_world_mut(world: &mut World) -> Result<Self::Mut<'_>, BoxError>;
+    fn from_world(world: &World) -> Result<Self::Ref<'_>, Box<Error>>;
+    fn from_world_mut(world: &mut World) -> Result<Self::Mut<'_>, Box<Error>>;
 }
 
 impl FromWorldAccess for NoContext {
@@ -61,12 +61,12 @@ impl<T> FromWorldAccess for T where T: Resource {
     }
 }
 
-#[doc(hidden)]
+/// Utility for implementing [`SerdeProject`].
 pub fn from_world<T: SerdeProject>(world: &World) -> Result<<T::Ctx as FromWorldAccess>::Ref<'_>, BoxError> {
     <T::Ctx as FromWorldAccess>::from_world(world)
 }
 
-#[doc(hidden)]
+/// Utility for implementing [`SerdeProject`].
 pub fn from_world_mut<T: SerdeProject>(world: &mut World) -> Result<<T::Ctx as FromWorldAccess>::Mut<'_>, BoxError> {
     <T::Ctx as FromWorldAccess>::from_world_mut(world)
 }

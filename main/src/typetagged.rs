@@ -131,6 +131,16 @@ pub trait BevyTypeTagged: Send + Sync + 'static {
 }
 
 /// A concrete type that implements a [`BevyTypeTagged`] trait.
+pub trait FromTypeTagged<T: DeserializeOwned>: BevyTypeTagged {
+    /// Type name, must be unique per type and 
+    /// must match the output on the corresponding [`BevyTypeTagged`]
+    /// when type erased.
+    fn name() -> &'static str;
+    /// Convert to a [`BevyTypeTagged`] type.
+    fn from_type_tagged(item: T) -> Self;
+}
+
+/// A concrete type that implements a [`BevyTypeTagged`] trait.
 pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
     /// Type name, must be unique per type and 
     /// must match the output on the corresponding [`BevyTypeTagged`]
@@ -138,6 +148,16 @@ pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
     fn name() -> &'static str;
     /// Convert to a [`BevyTypeTagged`] type.
     fn into_type_tagged(self) -> T;
+}
+
+impl<T: BevyTypeTagged, U: DeserializeOwned> IntoTypeTagged<T> for U where T: FromTypeTagged<U> {
+    fn name() -> &'static str {
+        <T as FromTypeTagged<U>>::name()
+    }
+
+    fn into_type_tagged(self) -> T {
+        T::from_type_tagged(self)
+    }
 }
 
 type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, erased_serde::Error>;
@@ -213,7 +233,7 @@ impl<'de, V: BevyTypeTagged> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
     }
 }
 
-pub struct DeserializeFnSeed<'de, T: BevyTypeTagged>(DeserializeFn<T>, PhantomData<&'de ()>);
+struct DeserializeFnSeed<'de, T: BevyTypeTagged>(DeserializeFn<T>, PhantomData<&'de ()>);
 
 impl<'de, T: BevyTypeTagged> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
     type Value = T;
