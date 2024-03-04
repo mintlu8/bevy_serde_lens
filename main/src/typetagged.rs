@@ -120,7 +120,7 @@ impl<T: BevyTypeTagged> Convert<T> for TypeTagged<T> {
 /// ```
 pub trait BevyTypeTagged: Send + Sync + 'static {
     /// Returns the type name of the implementor.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> impl AsRef<str>;
     /// Returns the untagged inner value of the implementor.
     ///
     /// # Note
@@ -135,7 +135,7 @@ pub trait FromTypeTagged<T: DeserializeOwned>: BevyTypeTagged {
     /// Type name, must be unique per type and 
     /// must match the output on the corresponding [`BevyTypeTagged`]
     /// when type erased.
-    fn name() -> &'static str;
+    fn name() -> impl AsRef<str>;
     /// Convert to a [`BevyTypeTagged`] type.
     fn from_type_tagged(item: T) -> Self;
 }
@@ -145,13 +145,13 @@ pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
     /// Type name, must be unique per type and 
     /// must match the output on the corresponding [`BevyTypeTagged`]
     /// when type erased.
-    fn name() -> &'static str;
+    fn name() -> impl AsRef<str>;
     /// Convert to a [`BevyTypeTagged`] type.
     fn into_type_tagged(self) -> T;
 }
 
 impl<T: BevyTypeTagged, U: DeserializeOwned> IntoTypeTagged<T> for U where T: FromTypeTagged<U> {
-    fn name() -> &'static str {
+    fn name() -> impl AsRef<str> {
         <T as FromTypeTagged<U>>::name()
     }
 
@@ -165,13 +165,13 @@ type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, era
 /// A [`Resource`] that stores registered deserialization functions.
 #[derive(Resource, Default)]
 pub struct TypeTagServer {
-    functions: FxHashMap<(TypeId, &'static str), Box<dyn Any + Send + Sync>>,
+    functions: FxHashMap<(TypeId, Cow<'static, str>), Box<dyn Any + Send + Sync>>,
 }
 
 impl TypeTagServer {
     pub fn get<T: BevyTypeTagged>(&self, name: &str) -> Option<DeserializeFn<T>>{
         let id = TypeId::of::<T>();
-        self.functions.get(&(id, name)).and_then(|f| f.downcast_ref()).copied()
+        self.functions.get(&(id, Cow::Borrowed(name))).and_then(|f| f.downcast_ref()).copied()
     }
 
     pub fn clear(&mut self) {
@@ -183,7 +183,7 @@ impl TypeTagServer {
         let de_fn: DeserializeFn<T> = |de| {
             Ok(A::into_type_tagged(erased_serde::deserialize::<A>(de)?))
         };
-        self.functions.insert((id, A::name()), Box::new(de_fn));
+        self.functions.insert((id, Cow::Owned(A::name().as_ref().to_owned())), Box::new(de_fn));
     }
 }
 
@@ -191,7 +191,7 @@ impl<V> serde::Serialize for TypeTagged<V> where V: BevyTypeTagged {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(&self.0.name(), &self.0.as_serialize())?;
+        map.serialize_entry(self.0.name().as_ref(), &self.0.as_serialize())?;
         map.end()
     }
 }

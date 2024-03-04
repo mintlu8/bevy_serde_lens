@@ -17,7 +17,7 @@ macro_rules! impl_animal {
         }
 
         impl IntoTypeTagged<Box<dyn Animal>> for $ty {
-            fn name() -> &'static str {
+            fn name() -> impl AsRef<str> {
                 stringify!($ty)
             }
             fn into_type_tagged(self) -> Box<dyn Animal> {
@@ -40,7 +40,7 @@ pub trait Animal: Send + Sync + 'static {
 }
 
 impl BevyTypeTagged for Box<dyn Animal> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
 
