@@ -1,6 +1,6 @@
 [package]
 name = "bevy_serde_project"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -16,6 +16,9 @@ keywords = ["bevy", "serde", "serialize", "save"]
 [lib]
 doctest = false
 
+[features]
+default = ["bevy_defer"]
+
 [dependencies]
 bevy_ecs = "0.13.0"
 bevy_app = "0.13.0"
@@ -29,6 +32,7 @@ thiserror = "1.0.57"
 ref-cast = "1.0.22"
 bevy_serde_project_derive = { version = "0.1.0", path = "../derive" }
 scoped-tls = "1.0.1"
+bevy_defer = { version = "0.4.4", optional = true }
 
 [dev-dependencies]
 bevy_reflect = "0.13.0"
