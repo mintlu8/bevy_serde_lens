@@ -39,9 +39,9 @@ pub trait Animal: Send + Sync + 'static {
     fn as_ser(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl BevyTypeTagged for Box<dyn Animal> {
+impl BevyTypeTagged for dyn Animal {
     fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
+        self.name()
     }
 
     fn as_serialize(&self) -> &dyn erased_serde::Serialize {

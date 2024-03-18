@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 
-use crate::typetagged::{scoped, BevyTypeTagged, IntoTypeTagged, TypeTagServer};
+use crate::typetagged::{scoped, scoped_any, BevyTypeTagged, DeserializeAnyFn, DeserializeAnyServer, IntoTypeTagged, TypeTagServer};
 use crate::{BindBevyObject, BevyObject};
 
 #[allow(unused)]
@@ -34,6 +34,16 @@ pub trait WorldExtension {
     fn despawn_bound_objects<T: SaveLoad>(&mut self);
     /// Register a type that can be deserialized dynamically.
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
+    /// Register a type that can be deserialized dynamically from a primitive.
+    /// 
+    /// Accepts a `Fn(T) -> Result<T, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
+    /// 
+    /// # Example 
+    /// ```
+    /// // deserialize number as the default attacking type
+    /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
+    /// ```
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
 }
 
 impl WorldExtension for World {
@@ -42,12 +52,23 @@ impl WorldExtension for World {
     }
 
     fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
+        macro_rules! inner {
+            () => {
+                if let Some(server) = self.remove_resource::<DeserializeAnyServer>() {
+                    let result = scoped_any(&server, ||T::load(self, deserializer));
+                    self.insert_resource(server);
+                    result
+                } else {
+                    T::load(self, deserializer)
+                }
+            };
+        }
         if let Some(server) = self.remove_resource::<TypeTagServer>() {
-            let result = scoped(&server, ||T::load(self, deserializer));
+            let result = scoped(&server, ||inner!());
             self.insert_resource(server);
             result
         } else {
-            T::load(self, deserializer)
+            inner!()
         }
     }
 
@@ -58,6 +79,11 @@ impl WorldExtension for World {
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
         let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
         server.register::<A, B>()
+    }
+
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+        let mut server = self.get_resource_or_insert_with(DeserializeAnyServer::default);
+        server.register::<T, O>(f)
     }
 }
 
@@ -76,6 +102,10 @@ impl WorldExtension for App {
 
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
         self.world.register_typetag::<A, B>()
+    }
+
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+        self.world.register_deserialize_any::<T, O>(f)
     }
 }
 

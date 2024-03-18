@@ -40,7 +40,7 @@ world.save::<Character>(serializer)
 // Load
 world.load::<Character>(deserializer)
 // Delete
-world.despawn_bound_objects::<Character>(deserializer)
+world.despawn_bound_objects::<Character>()
 ```
 
 This saves a list of Characters like so:
@@ -59,7 +59,7 @@ To save multiple types of objects in a batch, create a batch serialization type 
 type SaveFileOne = batch!(Character, Monster, Terrain);
 world.save::<SaveFileOne>(serializer)
 world.load::<SaveFileOne>(serializer)
-world.despawn_bound_objects::<SaveFileOne>(serializer)
+world.despawn_bound_objects::<SaveFileOne>()
 ```
 
 This saves a map like so:
@@ -88,18 +88,11 @@ type due to the orphan rule.
 This is where `Convert` and the `SerdeProject`
 macro comes in handy.
 
-### `FromWorldAccess`
-
-A convenient trait for getting something from the world.
-
-Either `NoContext`,
-a `Resource` or `WorldAccess` (`&world` and `&mut World`)
-
 ### `SerdeProject`
 
 `SerdeProject` projects non-serde types into serde types with world access.
 
-The `SerdeProject`(bevy_serde_project_derive::SerdeProject) macro implements
+The `SerdeProject` macro implements
 `SerdeProject` on type where all fields either implements `SerdeProject` or converts
 to a `SerdeProject` newtype via the `Convert` trait.
 
@@ -118,17 +111,54 @@ struct MySprite {
 }
 ```
 
+### `Convert`
+
+Convert allows you to `RefCast` a non-serializable type
+to a newtype that implements `SerdeProject`.
+
+For example `PathHandle<Handle<T>>` serializes `Handle` as a `String`, while
+`UniqueHandle<Handle<T>>` serializes `Handle` as a `T`.
+This zero-cost conversion can be done via the `ref_cast` crate.
+
 ### `BevyObject`
 
-A `BevyObject` allows an `Entity` to be serialized.
-All `SerdeProject` `Component`s are `BevyObject`s
-since each entity can only have at most one of each component.
+A `BevyObject` allows an `Entity` to be serialized. This can either be just a component,
+or a combination of components, children, components on children, etc.
+
+All `SerdeProject` components are `BevyObject`s.
 
 ### `BindBevyObject`
 
-`BindBevyObject` is a key `Component` that indicates an Entity is the `BevyObject`.
-Any entity that has the `Component` but does not satisfy the layout of the `BevyObject`
+`BindBevyObject` is a key `Component` that is the entry point of serialization and deserialization.
+
+Any entity that has the `Component` but does not satisfy the layout of the bound `BevyObject`
 will result in an error.
+
+use the `bind_object!` macro to create a serialization entry.
+
+## TypeTag
+
+The `typetag` crate allows you to serialize trait objects like `Box<dyn T>`, but this is
+always global and does not work on WASM. This crate allows you to register deserializers manually
+in the bevy `World` and use the `TypeTagged` newtype for serialization.
+
+```rust
+world.register_typetag::<Box<dyn Animal>, Cat>()
+```
+
+To have nicer looking configuration files,
+you can use `register_deserialize_any` and `AnyTagged` to allow `deserialize_any`, i.e.
+deserialize `42` instead of `{"int": 42}` in self-describing formats.
+Keep in mind using `AnyTagged` in a non-self-describing format like `postcard` will always panic
+as this is a limitation of the serde specification.
+
+```rust
+world.register_deserialize_any(|s: String| 
+    Ok(Box::new(s.parse::<Cat>()
+        .map_err(|e| e.to_string())?
+    ) as Box<dyn Animal>)
+)
+```
 
 ## Versions
 

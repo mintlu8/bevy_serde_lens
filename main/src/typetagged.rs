@@ -45,15 +45,45 @@
 //!     value: u32,
 //! }
 //! ```
+//! 
+//! # Deserialize Any
+//! 
+//! Use [`register_deserialize_any`](crate::WorldExtension::register_deserialize_any) to add functions
+//! to deserialize from primitives like `i64`, `str`, etc. 
+//! 
+//! Normally the format is, in json:
+//! 
+//! ```
+//! {
+//!     "field": {
+//!         "Type": "Value"
+//!     }
+//! }
+//! ```
+//! 
+//! Using deserialize any, this can be simplified as
+//! 
+//! ```
+//! {
+//!     "field": "Value"
+//! }
+//! ```
+//! 
+//! Keep in mind calling `deserialize_any` will always
+//! panic in non-self describing formats like `postcard`,
+//! as this is a limitation of the serde specification. Therefore [`TypeTagged`]
+//! will never call `deserialize_any`. Use [`AnyTagged`] to use `deserialize_any`
+//! on primitives
 
 
-use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData};
+use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData, rc::Rc, sync::Arc};
 use bevy_ecs::system::Resource;
+use bevy_reflect::TypePath;
 use erased_serde::Deserializer;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 use scoped_tls::scoped_thread_local;
-use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
+use serde::{de::{DeserializeOwned, DeserializeSeed, Visitor}, Serialize};
 use crate::Convert;
 
 scoped_thread_local! {
@@ -145,13 +175,13 @@ impl<T: BevyTypeTagged> Convert<T> for AnyTagged<T> {
 ///     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 /// }
 ///
-/// impl BevyTypeTagged for Box<dyn Stat> {
+/// impl BevyTypeTagged for dyn Stat {
 ///     fn name(&self) -> &'static str {
-///         self.as_ref().name()
+///         Stat::name(self)
 ///     }
 ///
 ///     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-///         self.as_ref().as_serialize()
+///         Stat::as_serialize(self)
 ///     }
 /// }
 ///
@@ -167,7 +197,7 @@ impl<T: BevyTypeTagged> Convert<T> for AnyTagged<T> {
 ///     app.register_typetag::<Box<dyn<Stat>>, MyStat>   
 /// }
 /// ```
-pub trait BevyTypeTagged: Send + Sync + 'static {
+pub trait BevyTypeTagged: 'static {
     /// Returns the type name of the implementor.
     fn name(&self) -> impl AsRef<str>;
     /// Returns the untagged inner value of the implementor.
@@ -236,14 +266,52 @@ impl TypeTagServer {
     }
 }
 
-type DeserializeUnitFn<T> = fn() -> Result<T, String>;
-type DeserializeBoolFn<T> = fn(bool) -> Result<T, String>;
-type DeserializeIntFn<T> = fn(i64) -> Result<T, String>;
-type DeserializeUIntFn<T> = fn(u64) -> Result<T, String>;
-type DeserializeFloatFn<T> = fn(f64) -> Result<T, String>;
-type DeserializeCharFn<T> = fn(char) -> Result<T, String>;
-type DeserializeStrFn<T> = fn(&str) -> Result<T, String>;
-type DeserializeBytesFn<T> = fn(&[u8]) -> Result<T, String>;
+mod sealed {
+    pub trait Sealed<E> {}
+}
+
+use sealed::Sealed;
+
+pub trait DeserializeAnyFn<T, E>: Sealed<E> {
+    fn register(self, server: &mut DeserializeAnyServer);
+}
+
+macro_rules! impl_de_any_fn {
+    ($($in: ty, $out: ident, $name: ident);*;) => {
+        $(
+            type $name<T> = Box<dyn Fn($in) -> Result<T, String> + Send + Sync + 'static>;
+            impl<T: BevyTypeTagged, F> Sealed<$in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
+            }
+            impl<T: BevyTypeTagged, F> DeserializeAnyFn<T, $in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
+                fn register(self, server: &mut DeserializeAnyServer) {
+                    let id = TypeId::of::<T>();
+                    server.$out.insert(id, Box::new(Box::new(self) as $name<T>));
+                }
+            }
+        )*
+    };
+}
+
+impl_de_any_fn!(
+    bool, deserialize_bool, DeserializeBoolFn;
+    i64, deserialize_int, DeserializeIntFn;
+    u64, deserialize_uint, DeserializeUIntFn;
+    f64, deserialize_float, DeserializeFloatFn;
+    char, deserialize_char, DeserializeCharFn;
+    &str, deserialize_str, DeserializeStrFn;
+    &[u8], deserialize_bytes, DeserializeBytesFn;
+);
+
+type DeserializeUnitFn<T> = Box<dyn Fn() -> Result<T, String> + Send + Sync + 'static>;
+
+impl<T: 'static, F> Sealed<()> for F where F: Fn() -> Result<T, String> + Send + Sync + 'static{}
+
+impl<T: 'static, F> DeserializeAnyFn<T, ()> for F where F: Fn() -> Result<T, String> + Send + Sync + 'static{
+    fn register(self, server: &mut DeserializeAnyServer) {
+        let id = TypeId::of::<T>();
+        server.deserialize_unit.insert(id, Box::new(Box::new(self) as DeserializeUnitFn<T>));
+    }
+}
 
 // Experimental
 // type DeserializeSeqFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, erased_serde::Error>;
@@ -259,7 +327,6 @@ pub struct DeserializeAnyServer {
     deserialize_char: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
     deserialize_str: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
     deserialize_bytes: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_seq: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl DeserializeAnyServer {
@@ -272,47 +339,50 @@ impl DeserializeAnyServer {
         self.deserialize_char.clear();
         self.deserialize_str.clear();
         self.deserialize_bytes.clear();
-        self.deserialize_seq.clear();
     }
 
-    pub fn register_unit<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeUnitFn<A>) {
-        let id = TypeId::of::<T>();
-        self.deserialize_unit.insert(id, Box::new(f));
+    pub fn register<T: BevyTypeTagged, Marker>(&mut self, f: impl DeserializeAnyFn<T, Marker>) {
+        f.register(self)
     }
 
-    pub fn register_bool<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeBoolFn<A>) {
+    pub fn get_unit<T: BevyTypeTagged>(&self) -> Option<&DeserializeUnitFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_bool.insert(id, Box::new(f));
+        self.deserialize_unit.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_int<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeIntFn<A>) {
+    pub fn get_bool<T: BevyTypeTagged>(&self) -> Option<&DeserializeBoolFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_int.insert(id, Box::new(f));
+        self.deserialize_bool.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_uint<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeUIntFn<A>) {
+    pub fn get_int<T: BevyTypeTagged>(&self) -> Option<&DeserializeIntFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_uint.insert(id, Box::new(f));
+        self.deserialize_int.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_float<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeFloatFn<A>) {
+    pub fn get_uint<T: BevyTypeTagged>(&self) -> Option<&DeserializeUIntFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_float.insert(id, Box::new(f));
+        self.deserialize_uint.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_char<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeCharFn<A>) {
+    pub fn get_float<T: 'static>(&self) -> Option<&DeserializeFloatFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_char.insert(id, Box::new(f));
+        self.deserialize_float.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_str<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeStrFn<A>) {
+    pub fn get_char<T: 'static>(&self) -> Option<&DeserializeCharFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_str.insert(id, Box::new(f));
+        self.deserialize_char.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn register_bytes<T: BevyTypeTagged, A: Send + Sync + 'static>(&mut self, f: DeserializeBytesFn<A>) {
+    pub fn get_str<T: 'static>(&self) -> Option<&DeserializeStrFn<T>>{
         let id = TypeId::of::<T>();
-        self.deserialize_bytes.insert(id, Box::new(f));
+        self.deserialize_str.get(&id).map(|f| f.downcast_ref().unwrap())
+    }
+
+    pub fn get_bytes<T: 'static>(&self) -> Option<&DeserializeBytesFn<T>>{
+        let id = TypeId::of::<T>();
+        self.deserialize_bytes.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 }
 
@@ -375,6 +445,127 @@ impl<'de, V: BevyTypeTagged> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
         };
         map.next_value_seed(DeserializeFnSeed(de_fn, PhantomData))
     }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_unit::<V>().map(|f| f())}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_unit unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_bool::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_bool unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_int::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_i64 unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_uint::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_u64 unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_float::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_f64 unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_char<E>(self, v: char) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_char::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_char unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_str::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_str unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+    
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E> where E: serde::de::Error {
+        if !DESERIALIZE_ANY_FUNCTIONS.is_set(){
+            return Err(serde::de::Error::custom(
+                "cannot deserialize `TypeTagged` value outside the `save` context.",
+            ));
+        }
+        match DESERIALIZE_ANY_FUNCTIONS.with(|map| { map.get_bytes::<V>().map(|f| f(v))}) {
+            Some(Ok(result)) => Ok(result),
+            Some(Err(error)) => Err(serde::de::Error::custom(error)),
+            None => Err(serde::de::Error::custom(format!(
+                "deserialize_bytes unregistered for {}", std::any::type_name::<V>(),
+            ))),
+        }
+    }
+    
 }
 
 struct DeserializeFnSeed<'de, T: BevyTypeTagged>(DeserializeFn<T>, PhantomData<&'de ()>);
@@ -384,5 +575,103 @@ impl<'de, T: BevyTypeTagged> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> 
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
         (self.0)(&mut <dyn Deserializer>::erase(deserializer)).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<T> BevyTypeTagged for Box<T> where T: BevyTypeTagged + ?Sized {
+    fn name(&self) -> impl AsRef<str> {
+        self.as_ref().name()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ref().as_serialize()
+    }
+}
+
+impl<T> BevyTypeTagged for Rc<T> where T: BevyTypeTagged + ?Sized {
+    fn name(&self) -> impl AsRef<str> {
+        self.as_ref().name()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ref().as_serialize()
+    }
+}
+
+impl<T> BevyTypeTagged for Arc<T> where T: BevyTypeTagged + ?Sized {
+    fn name(&self) -> impl AsRef<str> {
+        self.as_ref().name()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ref().as_serialize()
+    }
+}
+
+impl<T> BevyTypeTagged for Cow<'static, T> where T: BevyTypeTagged + ToOwned + ?Sized, T::Owned: Send + Sync + 'static {
+    fn name(&self) -> impl AsRef<str> {
+        self.as_ref().name()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ref().as_serialize()
+    }
+}
+
+/// A basic trait object that satisfies [`BevyTypeTagged`]. 
+/// 
+/// All [`TypePath`] and [`Serialize`] types automatically implements this.
+pub trait TaggedAny: Any + Send + Sync + 'static {
+    fn name(&self) -> &'static str;
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
+}
+
+impl<T> TaggedAny for T where T: Serialize + TypePath + Send + Sync + 'static {
+    fn name(&self) -> &'static str {
+        T::short_type_path()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+}
+
+impl BevyTypeTagged for dyn TaggedAny {
+    fn name(&self) -> impl AsRef<str> {
+        TaggedAny::name(self)
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        TaggedAny::as_serialize(self)
+    }
+}
+
+impl<T> FromTypeTagged<T> for Box<dyn TaggedAny> where T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Box::new(item)
+    }
+}
+
+impl<T> FromTypeTagged<T> for Rc<dyn TaggedAny> where T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Rc::new(item)
+    }
+}
+
+impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny> where T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Arc::new(item)
     }
 }
