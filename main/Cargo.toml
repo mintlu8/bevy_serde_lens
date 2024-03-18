@@ -1,6 +1,6 @@
 [package]
 name = "bevy_serde_project"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]

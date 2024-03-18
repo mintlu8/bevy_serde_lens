@@ -15,9 +15,8 @@ A pretty and structural serialization crate for the bevy engine.
 
 ## Getting Started
 
-Assume all components are `Serialize` and `DeserializeOwned`.
-
-Serialize an `Entity` Character with some components and children:
+Serialize an `Entity` Character with some components and children,
+assuming all components are `Serialize` and `DeserializeOwned`:
 
 ```rust
 bind_object!(Character {
@@ -43,7 +42,7 @@ world.load::<Character>(deserializer)
 world.despawn_bound_objects::<Character>()
 ```
 
-This saves a list of Characters like so:
+This saves a list of Characters as an array:
 
 ```rust
 [
@@ -62,7 +61,7 @@ world.load::<SaveFileOne>(serializer)
 world.despawn_bound_objects::<SaveFileOne>()
 ```
 
-This saves a map like so:
+This saves each type in a map entry:
 
 ```rust
 {
@@ -75,6 +74,23 @@ This saves a map like so:
     "Terrain": [ .. ]
 }
 ```
+
+## What if my types aren't `Serialize` and `DeserializeOwned`?
+
+We can derive or implement `SerdeProject` to convert them into `serde` types.
+
+### I don't own the type
+
+Use `Convert` and the `SerdeProject` macro to cast the type to an owned newtype.
+
+### I have an ID and I want to serialize its content
+
+`SerdeProject` allows you to fetch a resource from the world during serialization.
+
+### I have a `Box<dyn T>`
+
+If you are on a non-wasm platform you can try the `typetag` crate. If not,
+or if you want more control, checkout the `typetagged` module in this crate.
 
 ## The traits and what they do
 
@@ -129,7 +145,7 @@ All `SerdeProject` components are `BevyObject`s.
 
 ### `BindBevyObject`
 
-`BindBevyObject` is a key `Component` that is the entry point of serialization and deserialization.
+`BindBevyObject` is a key `Component` that is the entry point for serialization and deserialization.
 
 Any entity that has the `Component` but does not satisfy the layout of the bound `BevyObject`
 will result in an error.
@@ -138,8 +154,10 @@ use the `bind_object!` macro to create a serialization entry.
 
 ## TypeTag
 
-The `typetag` crate allows you to serialize trait objects like `Box<dyn T>`, but this is
-always global and does not work on WASM. This crate allows you to register deserializers manually
+The `typetag` crate allows you to serialize trait objects like `Box<dyn T>`,
+but using `typetag` will always
+pull in all implementations linked to your build and does not work on WASM.
+To address these limitations this crate allows you to register deserializers manually
 in the bevy `World` and use the `TypeTagged` newtype for serialization.
 
 ```rust
@@ -153,7 +171,7 @@ Keep in mind using `AnyTagged` in a non-self-describing format like `postcard` w
 as this is a limitation of the serde specification.
 
 ```rust
-world.register_deserialize_any(|s: String| 
+world.register_deserialize_any(|s: &str| 
     Ok(Box::new(s.parse::<Cat>()
         .map_err(|e| e.to_string())?
     ) as Box<dyn Animal>)
