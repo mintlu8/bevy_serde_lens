@@ -4,7 +4,7 @@ members = ["derive"]
 
 [package]
 name = "bevy_serde_project"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]

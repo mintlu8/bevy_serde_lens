@@ -82,7 +82,7 @@ pub trait SerdeAsset: Asset + Sized {
     type De<'de>: Deserialize<'de>;
 
     /// Convert to a [`Serialize`] type.
-    fn to_ser<'t>(this: &'t Handle<Self>, ctx: &World) -> Result<Self::Ser<'t>, Box<Error>>;
+    fn to_ser<'t>(this: &'t Handle<Self>, ctx: &'t World) -> Result<Self::Ser<'t>, Box<Error>>;
     /// Convert from a [`Deserialize`] type.
     fn from_de(ctx: &mut World, de: Self::De<'_>) -> Result<Handle<Self>, Box<Error>>;
 }
