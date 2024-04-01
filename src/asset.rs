@@ -11,7 +11,7 @@ use crate::{BoxError, Convert, Error, FromWorldAccess, SerdeProject, WorldAccess
 /// Projection of [`Handle`] that serializes its string path.
 #[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
 #[repr(transparent)]
-pub struct PathHandle<T: Asset>(Handle<T>);
+pub struct PathHandle<T: Asset>(pub Handle<T>);
 
 impl<T: Asset> Convert<Handle<T>> for PathHandle<T>{
     fn ser(input: &Handle<T>) -> &Self {
@@ -44,7 +44,7 @@ impl<T: Asset> SerdeProject for PathHandle<T>{
 /// Projection of [`Handle`] that serializes its content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
 #[repr(transparent)]
-pub struct UniqueHandle<T: Asset + SerdeProject>(Handle<T>);
+pub struct UniqueHandle<T: Asset + SerdeProject>(pub Handle<T>);
 
 impl<T: Asset + SerdeProject> Convert<Handle<T>> for UniqueHandle<T>{
     fn ser(input: &Handle<T>) -> &Self {
@@ -91,7 +91,7 @@ pub trait SerdeAsset: Asset + Sized {
 /// by the [`Asset`]'s [`SerdeAsset`] implementation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
 #[repr(transparent)]
-pub struct SerdeHandle<T: SerdeAsset>(Handle<T>);
+pub struct SerdeHandle<T: SerdeAsset>(pub Handle<T>);
 
 impl<T: SerdeAsset> Convert<Handle<T>> for SerdeHandle<T>{
     fn ser(input: &Handle<T>) -> &Self {

@@ -105,7 +105,7 @@ pub(crate) fn scoped_any<T>(deserialize_fns: &DeserializeAnyServer, f: impl FnOn
 /// A serializable trait object.
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
-pub struct TypeTagged<T: BevyTypeTagged>(T);
+pub struct TypeTagged<T: BevyTypeTagged>(pub T);
 
 impl<T: BevyTypeTagged> Convert<T> for TypeTagged<T> {
     fn ser(input: &T) -> &Self {
@@ -146,7 +146,7 @@ impl<T: BevyTypeTagged> Convert<T> for TypeTagged<T> {
 /// like `postcard` and will cause an error, be careful when using this in multiple formats.
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
-pub struct AnyTagged<T: BevyTypeTagged>(T);
+pub struct AnyTagged<T: BevyTypeTagged>(pub T);
 
 impl<T: BevyTypeTagged> Convert<T> for AnyTagged<T> {
     fn ser(input: &T) -> &Self {

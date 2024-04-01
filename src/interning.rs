@@ -23,7 +23,7 @@ pub trait Interner<Key>: Resource {
 /// Projection of an [`InterningKey`] that serializes the interned value.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, RefCast)]
 #[repr(transparent)]
-pub struct Interned<T: InterningKey>(T);
+pub struct Interned<T: InterningKey>(pub T);
 
 impl<T: InterningKey> Convert<T> for Interned<T> {
     fn ser(input: &T) -> &Self {
