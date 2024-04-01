@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use bevy_asset::{Asset, AssetServer, Assets, Handle};
 use bevy_ecs::world::World;
 use ref_cast::RefCast;
+use serde::{Deserialize, Serialize};
 use crate::{BoxError, Convert, Error, FromWorldAccess, SerdeProject, WorldAccess, WorldUtil};
 
 /// Projection of [`Handle`] that serializes its string path.
@@ -70,5 +71,48 @@ impl<T: Asset + SerdeProject> SerdeProject for UniqueHandle<T>{
     fn from_de(world: &mut &mut World, de: Self::De<'_>) -> Result<Self, BoxError> {
         let item = T::from_de(&mut <T::Ctx as FromWorldAccess>::from_world_mut(world)?, de)?;
         Ok(UniqueHandle(world.resource_mut_ok::<Assets<T>>()?.add(item)))
+    }
+}
+
+/// Custom serialization for an [`Asset`].
+pub trait SerdeAsset: Asset + Sized {
+    /// A [`Serialize`] type.
+    type Ser<'t>: Serialize + 't where Self: 't;
+    /// A [`Deserialize`] type.
+    type De<'de>: Deserialize<'de>;
+
+    /// Convert to a [`Serialize`] type.
+    fn to_ser<'t>(this: &'t Handle<Self>, ctx: &World) -> Result<Self::Ser<'t>, Box<Error>>;
+    /// Convert from a [`Deserialize`] type.
+    fn from_de(ctx: &mut World, de: Self::De<'_>) -> Result<Handle<Self>, Box<Error>>;
+}
+
+/// Projection of [`Handle`] that serializes
+/// by the [`Asset`]'s [`SerdeAsset`] implementation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
+#[repr(transparent)]
+pub struct SerdeHandle<T: SerdeAsset>(Handle<T>);
+
+impl<T: SerdeAsset> Convert<Handle<T>> for SerdeHandle<T>{
+    fn ser(input: &Handle<T>) -> &Self {
+        Self::ref_cast(input)
+    }
+
+    fn de(self) -> Handle<T> {
+        self.0
+    }
+}
+
+impl<T: SerdeAsset> SerdeProject for SerdeHandle<T> {
+    type Ctx = WorldAccess;
+    type Ser<'t> = T::Ser<'t>;
+    type De<'de> = T::De<'de>;
+
+    fn to_ser<'t>(&'t self, world: &&'t World) -> Result<Self::Ser<'t>, BoxError> {
+        SerdeAsset::to_ser(&self.0, world)
+    }
+
+    fn from_de(world: &mut &mut World, de: Self::De<'_>) -> Result<Self, BoxError> {
+        SerdeAsset::from_de(world, de).map(SerdeHandle)
     }
 }

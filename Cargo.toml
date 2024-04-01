@@ -1,6 +1,41 @@
 [workspace]
-members = [
-    "main",
-    "derive"
-]
-resolver = "2"
+
+members = ["derive"]
+
+[package]
+name = "bevy_serde_project"
+version = "0.1.7"
+edition = "2021"
+
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+readme = "../README.md"
+repository = "https://github.com/mintlu8/bevy_serde_project"
+description = """
+A serialization framework for the bevy engine.
+"""
+keywords = ["bevy", "serde", "serialize", "save"]
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_ecs = "0.13.0"
+bevy_app = "0.13.0"
+bevy_hierarchy = "0.13.0"
+erased-serde = "0.4.3"
+itertools = "0.12.1"
+serde = "1.0.197"
+rustc-hash = "1.1.0"
+bevy_asset = "0.13.0"
+thiserror = "1.0.57"
+ref-cast = "1.0.22"
+scoped-tls = "1.0.1"
+bevy_reflect = "0.13.0"
+bevy_serde_project_derive = { version = "0.1.0", path = "./derive" }
+
+[dev-dependencies]
+bevy_reflect = "0.13.0"
+postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
+serde_json = "1.0.114"
