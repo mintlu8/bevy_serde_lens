@@ -685,12 +685,12 @@ impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny> where T: Serialize + Deserializ
 /// but can serialize a borrowed `BevyTypeTagged` trait object.
 /// This is useful for implementing `SerdeProject`.
 #[derive(Debug)]
-pub enum CowTypeTagged<'t, T: BevyTypeTagged>{
+pub enum CowTypeTagged<'t, T: BevyTypeTagged + ?Sized>{
     Borrowed(&'t T),
     Owned(Box<T>),
 }
 
-impl<T: BevyTypeTagged> CowTypeTagged<'_, T> {
+impl<T: BevyTypeTagged + ?Sized> CowTypeTagged<'_, T> {
     pub fn into_owned(self) -> Box<T> {
         match self {
             CowTypeTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
@@ -699,7 +699,7 @@ impl<T: BevyTypeTagged> CowTypeTagged<'_, T> {
     }
 }
 
-impl<T: BevyTypeTagged> Serialize for CowTypeTagged<'_, T> {
+impl<T: BevyTypeTagged + ?Sized> Serialize for CowTypeTagged<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let item = match self {
@@ -713,7 +713,7 @@ impl<T: BevyTypeTagged> Serialize for CowTypeTagged<'_, T> {
     }
 }
 
-impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowTypeTagged<'_, T> {
+impl<'de, T: BevyTypeTagged + ?Sized> Deserialize<'de> for CowTypeTagged<'_, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         Ok(CowTypeTagged::Owned(TypeTagged::<Box<T>>::deserialize(deserializer)?.0))
     }
@@ -728,12 +728,12 @@ impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowTypeTagged<'_, T> {
 /// but can serialize a borrowed `BevyTypeTagged` trait object.
 /// This is useful for implementing `SerdeProject`.
 #[derive(Debug)]
-pub enum CowAnyTagged<'t, T: BevyTypeTagged>{
+pub enum CowAnyTagged<'t, T: BevyTypeTagged + ?Sized>{
     Borrowed(&'t T),
     Owned(Box<T>),
 }
 
-impl<T: BevyTypeTagged> CowAnyTagged<'_, T> {
+impl<T: BevyTypeTagged + ?Sized> CowAnyTagged<'_, T> {
     pub fn into_owned(self) -> Box<T> {
         match self {
             CowAnyTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
@@ -742,7 +742,7 @@ impl<T: BevyTypeTagged> CowAnyTagged<'_, T> {
     }
 }
 
-impl<T: BevyTypeTagged> Serialize for CowAnyTagged<'_, T> {
+impl<T: BevyTypeTagged + ?Sized> Serialize for CowAnyTagged<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let item = match self {
@@ -756,7 +756,7 @@ impl<T: BevyTypeTagged> Serialize for CowAnyTagged<'_, T> {
     }
 }
 
-impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowAnyTagged<'_, T> {
+impl<'de, T: BevyTypeTagged + ?Sized> Deserialize<'de> for CowAnyTagged<'_, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         Ok(CowAnyTagged::Owned(AnyTagged::<Box<T>>::deserialize(deserializer)?.0))
     }
