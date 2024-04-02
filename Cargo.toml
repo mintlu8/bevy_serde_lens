@@ -20,22 +20,26 @@ keywords = ["bevy", "serde", "serialize", "save"]
 [lib]
 doctest = false
 
+[features]
+default = ["derive"]
+derive = ["dep:bevy_serde_project_derive"]
+
 [dependencies]
 bevy_ecs = "0.13.0"
 bevy_app = "0.13.0"
 bevy_hierarchy = "0.13.0"
+bevy_asset = "0.13.0"
+bevy_reflect = "0.13.0"
+
 erased-serde = "0.4.3"
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
 rustc-hash = "1.1.0"
-bevy_asset = "0.13.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls = "1.0.1"
-bevy_reflect = "0.13.0"
-bevy_serde_project_derive = { version = "0.1.0", path = "./derive" }
+bevy_serde_project_derive = { version = "0.1.0", path = "./derive", optional = true }
 
 [dev-dependencies]
-bevy_reflect = "0.13.0"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 serde_json = "1.0.114"
