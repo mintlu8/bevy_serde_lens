@@ -9,13 +9,14 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
 mod extractors;
-pub use extractors::{Object, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
+pub use extractors::{Null, Object, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
 mod save_load;
 pub use save_load::{WorldExtension, Join};
 mod macros;
 pub mod typetagged;
 pub mod asset;
 pub mod interning;
+pub mod entity;
 
 pub use bevy_serde_project_derive::SerdeProject;
 
@@ -134,7 +135,7 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
 
 /// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
 ///
-/// This means `world.save::<T>()` will try to serialize all entities with type T.
+/// This means `world.save::<T>()` will try to serialize all entities with component T.
 pub trait BindBevyObject: Component {
     type BevyObject: BevyObject;
 

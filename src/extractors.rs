@@ -5,6 +5,24 @@ use bevy_hierarchy::{BuildWorldChildren, Children};
 use itertools::Itertools;
 use crate::{BevyObject, BindBevyObject, BoxError, Error, WorldUtil};
 
+/// [`BevyObject`] equivalent to `()`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Null;
+
+impl BevyObject for Null {
+    type Ser<'t> = ();
+
+    type De<'de> = ();
+
+    fn to_ser(_: &World, _: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>> {
+        Ok(Some(()))
+    }
+
+    fn from_de(_: &mut World, _: Entity, _: Self::De<'_>) -> Result<(), Box<Error>> {
+        Ok(())
+    }
+}
+
 #[allow(unused)]
 use bevy_ecs::component::Component;
 

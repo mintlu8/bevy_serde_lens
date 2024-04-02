@@ -83,7 +83,7 @@ use erased_serde::Deserializer;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 use scoped_tls::scoped_thread_local;
-use serde::{de::{DeserializeOwned, DeserializeSeed, Visitor}, Serialize};
+use serde::{de::{DeserializeOwned, DeserializeSeed, Visitor}, Deserialize, Serialize};
 use crate::Convert;
 
 scoped_thread_local! {
@@ -673,5 +673,89 @@ impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny> where T: Serialize + Deserializ
 
     fn from_type_tagged(item: T) -> Self {
         Arc::new(item)
+    }
+}
+
+
+/// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
+/// `CowTypeTagged<dyn Trait>` is equivalent to `TypeTagged<Box<dyn Trait>>`.
+/// 
+/// This type is [`Serialize`] and [`Deserialize`], similar to [`TypeTagged`],
+/// but can serialize a borrowed `BevyTypeTagged` trait object.
+/// This is useful for implementing `SerdeProject`.
+#[derive(Debug)]
+pub enum CowTypeTagged<'t, T: BevyTypeTagged>{
+    Borrowed(&'t T),
+    Owned(Box<T>),
+}
+
+impl<T: BevyTypeTagged> CowTypeTagged<'_, T> {
+    pub fn into_owned(self) -> Box<T> {
+        match self {
+            CowTypeTagged::Borrowed(_) => panic!("deserialize will only return owned value."),
+            CowTypeTagged::Owned(v) => v,
+        }
+    }
+}
+
+impl<T: BevyTypeTagged> Serialize for CowTypeTagged<'_, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        use serde::ser::SerializeMap;
+        let item = match self {
+            CowTypeTagged::Borrowed(item) => item,
+            CowTypeTagged::Owned(item) => item.as_ref(),
+        };
+
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(item.name().as_ref(), item.as_serialize())?;
+        map.end()
+    }
+}
+
+impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowTypeTagged<'_, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+        Ok(CowTypeTagged::Owned(TypeTagged::<Box<T>>::deserialize(deserializer)?.0))
+    }
+}
+
+
+/// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
+/// `CowAnyTagged<dyn Trait>` is equivalent to `AnyTagged<Box<dyn Trait>>`.
+/// 
+/// This type is [`Serialize`] and [`Deserialize`], similar to [`AnyTagged`],
+/// but can serialize a borrowed `BevyTypeTagged` trait object.
+/// This is useful for implementing `SerdeProject`.
+#[derive(Debug)]
+pub enum CowAnyTagged<'t, T: BevyTypeTagged>{
+    Borrowed(&'t T),
+    Owned(Box<T>),
+}
+
+impl<T: BevyTypeTagged> CowAnyTagged<'_, T> {
+    pub fn into_owned(self) -> Box<T> {
+        match self {
+            CowAnyTagged::Borrowed(_) => panic!("deserialize will only return owned value."),
+            CowAnyTagged::Owned(v) => v,
+        }
+    }
+}
+
+impl<T: BevyTypeTagged> Serialize for CowAnyTagged<'_, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        use serde::ser::SerializeMap;
+        let item = match self {
+            CowAnyTagged::Borrowed(item) => item,
+            CowAnyTagged::Owned(item) => item.as_ref(),
+        };
+
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(item.name().as_ref(), item.as_serialize())?;
+        map.end()
+    }
+}
+
+impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowAnyTagged<'_, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+        Ok(CowAnyTagged::Owned(AnyTagged::<Box<T>>::deserialize(deserializer)?.0))
     }
 }

@@ -19,7 +19,7 @@ Serialize an `Entity` Character with some components and children,
 assuming all components are `Serialize` and `DeserializeOwned`:
 
 ```rust
-bind_object!(Character {
+bind_object!(Character as "Character" {
     #[serde(flatten)]
     character: Character,
     position: Position,
