@@ -4,14 +4,16 @@
 [![Docs](https://docs.rs/bevy_serde_project/badge.svg)](https://docs.rs/bevy_serde_project/latest/bevy_serde_project/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
-A pretty and structural serialization crate for the bevy engine.
+Stateful, structural and human-readable serialization crate for the bevy engine.
 
 ## Features
 
 * Stateful serialization and deserialization with world access.
 * Treat an `Entity`, its `Component`s and children as a single serde object.
 * Serialize `Handle`s and provide a generalized data interning interface.
+* Serialize stored `Entity`s like smart pointers.
 * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
+* Extremely lightweight and modular. No systems, no plugins.
 
 ## Getting Started
 
@@ -164,10 +166,20 @@ in the bevy `World` and use the `TypeTagged` newtype for serialization.
 world.register_typetag::<Box<dyn Animal>, Cat>()
 ```
 
-To have nicer looking configuration files,
+then
+
+```rust
+#[derive(SerdeProject)]
+struct MyComponent {
+    #[serde_project("TypeTagged<Box<dyn Weapon>>")]
+    weapon: Box<dyn Weapon>
+}
+```
+
+To have user friendly configuration files,
 you can use `register_deserialize_any` and `AnyTagged` to allow `deserialize_any`, i.e.
 deserialize `42` instead of `{"int": 42}` in self-describing formats.
-Keep in mind using `AnyTagged` in a non-self-describing format like `postcard` will always panic
+Keep in mind using `AnyTagged` in a non-self-describing format like `postcard` will always return an error
 as this is a limitation of the serde specification.
 
 ```rust

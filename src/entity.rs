@@ -83,3 +83,6 @@ impl<B: BevyObject> EntitySmartPointer<B> for Entity {
 
     fn inject_pointee(&mut self) -> Self::Pointee {}
 }
+
+// `EntityRc` could be a part of this crate but we do not 
+// require or provide systems by design. See tests for a implementation.

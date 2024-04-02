@@ -4,7 +4,7 @@ members = ["derive"]
 
 [package]
 name = "bevy_serde_project"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -13,7 +13,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/mintlu8/bevy_serde_project"
 description = """
-A serialization framework for the bevy engine.
+Stateful, structural and human-readable serialization crate for the bevy engine.
 """
 keywords = ["bevy", "serde", "serialize", "save"]
 
