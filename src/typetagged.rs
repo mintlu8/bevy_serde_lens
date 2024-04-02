@@ -678,6 +678,7 @@ impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny> where T: Serialize + Deserializ
 
 
 /// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
+/// 
 /// `CowTypeTagged<dyn Trait>` is equivalent to `TypeTagged<Box<dyn Trait>>`.
 /// 
 /// This type is [`Serialize`] and [`Deserialize`], similar to [`TypeTagged`],
@@ -692,7 +693,7 @@ pub enum CowTypeTagged<'t, T: BevyTypeTagged>{
 impl<T: BevyTypeTagged> CowTypeTagged<'_, T> {
     pub fn into_owned(self) -> Box<T> {
         match self {
-            CowTypeTagged::Borrowed(_) => panic!("deserialize will only return owned value."),
+            CowTypeTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
             CowTypeTagged::Owned(v) => v,
         }
     }
@@ -720,6 +721,7 @@ impl<'de, T: BevyTypeTagged> Deserialize<'de> for CowTypeTagged<'_, T> {
 
 
 /// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
+/// 
 /// `CowAnyTagged<dyn Trait>` is equivalent to `AnyTagged<Box<dyn Trait>>`.
 /// 
 /// This type is [`Serialize`] and [`Deserialize`], similar to [`AnyTagged`],
@@ -734,7 +736,7 @@ pub enum CowAnyTagged<'t, T: BevyTypeTagged>{
 impl<T: BevyTypeTagged> CowAnyTagged<'_, T> {
     pub fn into_owned(self) -> Box<T> {
         match self {
-            CowAnyTagged::Borrowed(_) => panic!("deserialize will only return owned value."),
+            CowAnyTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
             CowAnyTagged::Owned(v) => v,
         }
     }
