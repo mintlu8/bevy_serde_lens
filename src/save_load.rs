@@ -1,6 +1,6 @@
 use bevy_app::App;
 use bevy_ecs::query::QueryState;
-use bevy_ecs::{entity::Entity, query::With, world::World};
+use bevy_ecs::{entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use std::cell::RefCell;
 use std::{borrow::Cow, marker::PhantomData};
@@ -129,7 +129,7 @@ impl<T> SaveLoad for T where T: BindBevyObject {
 
     fn save<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
         let mut err = None;
-        let mut query = world.query_filtered::<Entity, With<T>>();
+        let mut query = world.query_filtered::<Entity, T::Filter>();
         let iter = query
             .iter(world)
             .filter_map(|entity| <T::BevyObject as BevyObject>::to_ser(world, entity).transpose())
@@ -165,17 +165,17 @@ impl<T> SaveLoad for T where T: BindBevyObject {
 
     fn save_map<S: SerializeMap>(world: &mut World, serializer: &mut S) -> Result<(), S::Error>{
         serializer.serialize_key(Self::name())?;
-        let state = world.query_filtered::<Entity, With<Self>>();
+        let state = world.query_filtered::<Entity, T::Filter>();
         serializer.serialize_value(&SerializeSeed {
             world,
             state: RefCell::new(state),
-            p: PhantomData
+            p: PhantomData::<T>
         })?;
         Ok(())
     }
 
     fn despawn(world: &mut World) {
-        let mut query = world.query_filtered::<Entity, With<T>>();
+        let mut query = world.query_filtered::<Entity, T::Filter>();
         let queue = query.iter(world).collect::<Vec<_>>();
         for entity in queue {
             bevy_hierarchy::despawn_with_children_recursive(world, entity);
@@ -189,7 +189,7 @@ pub struct Join<A, B>(PhantomData<(A, B)>);
 
 struct SerializeSeed<'t, T: BindBevyObject> {
     world: &'t World,
-    state: RefCell<QueryState<Entity, With<T>>>,
+    state: RefCell<QueryState<Entity, T::Filter>>,
     p: PhantomData<T>
 }
 

@@ -1,5 +1,7 @@
 #[allow(unused)]
 use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
+#[allow(unused)]
+use bevy_ecs::query::QueryFilter;
 
 /// Bind a [`BevyObject`] to a [`Component`].
 ///
@@ -7,7 +9,16 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// or the [`Object`] extractor.
 ///
 /// # Syntax
+/// 
+/// * Serialize a single component
 ///
+/// ```
+/// // This is required for serializing `Weapon` directly.
+/// bind_object!(Weapon as "weapon");
+/// ```
+///
+/// * Serialize a [`BevyObject`] from a [`Component`].
+/// 
 /// ```
 /// // `as "Name"` sets the serialized type name.
 /// bind_object!(Weapon as "weapon" {
@@ -32,11 +43,15 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// });
 /// ```
 ///
-/// Or just bind a component to itself:
-///
+/// * Serialize with a custom [`QueryFilter`]
+/// 
 /// ```
-/// // This is required for serializing `Weapon` directly.
-/// bind_object!(Weapon as "weapon");
+/// pub struct SerializeSword;
+/// 
+/// // = QueryFilter supplies a custom filter
+/// bind_object!(SerializeSword = (With<Weapon>, With<Sword>) as "sword" {
+///     ...
+/// });
 /// ```
 ///
 /// # Note
@@ -60,6 +75,7 @@ macro_rules! bind_object {
         const _: () = {
             impl $crate::BindBevyObject for $main {
                 type BevyObject = $main;
+                type Filter = $crate::With<$main>;
 
                 fn name() -> &'static str {
                     $name
@@ -71,10 +87,21 @@ macro_rules! bind_object {
     ($(#[$($head_attr: tt)*])* $main: ty as $name: literal {
         $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
     }) => {
+        $crate::bind_object!(
+            $(#[$($head_attr)*])* $main = $crate::With<$main> as $name {
+                $($(#[$($attr)*])* $field => $ty),*
+            }
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $main: ty = $qf: ty as $name: literal {
+        $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
+    }) => {
         #[allow(unused)]
         const _: () = {
             impl $crate::BindBevyObject for $main {
                 type BevyObject = __BoundObject;
+                type Filter = $qf;
 
                 fn name() -> &'static str {
                     $name

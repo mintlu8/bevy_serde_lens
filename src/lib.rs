@@ -3,7 +3,7 @@
 use std::any::type_name;
 use std::fmt::Display;
 
-use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
+use bevy_ecs::{component::Component, query::QueryFilter, system::Resource, world::{EntityRef, EntityWorldMut}};
 use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
@@ -26,7 +26,7 @@ use bevy_asset::Handle;
 use bevy_hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{world::World, entity::Entity};
+pub use bevy_ecs::{world::World, entity::Entity, query::With};
 use bevy_ecs::world::Mut;
 #[doc(hidden)]
 pub use serde;
@@ -133,11 +133,18 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     }
 }
 
-/// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
+/// Associate a [`BevyObject`] to a specific type. 
+/// All entities that satisfies [`QueryFilter`] `BindBevyObject::Filter` will be serialized,
+/// and an error will be thrown if **any** of these entities have a layout mismatch.
 ///
-/// This means `world.save::<T>()` will try to serialize all entities with component T.
-pub trait BindBevyObject: Component {
+/// The [`bind_object!`] macro is the standard way to implement this trait and [`BevyObject`].
+/// Implementors should keep in mind the [`BevyObject`] must satisfy `Filter`, otherwise
+/// this will not roundtrip properly.
+/// 
+/// A standard pattern is register [`BindBevyObject`] on a marker component and use filter `With<Self>`.
+pub trait BindBevyObject {
     type BevyObject: BevyObject;
+    type Filter: QueryFilter;
 
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.
@@ -152,7 +159,9 @@ pub trait BindBevyObject: Component {
 
 /// Treat an [`Entity`], its [`Component`]s and its [`Children`] as a serializable object.
 ///
-/// All [`Serialize`] + [`DeserializeOwned`] components automatically implements this.
+/// All [`Serialize`] + [`DeserializeOwned`] components automatically implements this trait.
+/// 
+/// [`bind_object!`] is the standard way to implement this trait.
 pub trait BevyObject {
     type Ser<'t>: Serialize + 't where Self: 't;
     type De<'de>: Deserialize<'de>;

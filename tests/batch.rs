@@ -1,5 +1,5 @@
-use bevy_ecs::{component::Component, world::World};
-use bevy_serde_project::{batch, bind_object, SerdeProject, WorldExtension};
+use bevy_ecs::{component::Component, query::With, world::World};
+use bevy_serde_project::{batch, bind_object, Maybe, SerdeProject, WorldExtension};
 use serde_json::json;
 
 #[derive(SerdeProject, Component)]
@@ -114,4 +114,23 @@ pub fn test() {
         "D": [69, 420],
     }));
 
+}
+
+
+#[test]
+pub fn test2() {
+    let mut world = World::new();
+    world.spawn((A('b'), B(0.5)));
+    world.spawn((A('b'), B(0.5), C("Ferris".to_owned())));
+    world.spawn((A('b'), B(0.5), D(69)));
+    world.spawn((A('b'), C("Crab".to_owned())));
+    
+    struct Binding;
+
+    bind_object!(Binding = (With<A>, With<B>) as "AB" {
+        a => A,
+        b => B,
+        c => Maybe<C>,
+        d => Maybe<D>,
+    });
 }
