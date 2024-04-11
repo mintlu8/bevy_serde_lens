@@ -6,6 +6,19 @@ use crate::{BoxError, Convert, FromWorldAccess, SerdeProject, WorldAccess};
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 /// A projection that serializes an [`Option`] containing a [`SerdeProject`] type.
+/// 
+/// # Example
+/// ```
+/// # /*
+/// // Id implements `SerdeProject` but not `Serialize`
+/// #[serde_project("ProjectOption<Option<Id>>")]
+/// id: Option<Id>
+/// 
+/// // `Convert` to another type through the second argument.
+/// #[serde_project("ProjectOption<Handle<Image>, PathHandle<Image>>")]
+/// image: Option<Handle<Image>>
+/// # */
+/// ```
 pub struct ProjectOption<From, To: Convert<From> + SerdeProject=From>(Option<From>, PhantomData<To>);
 
 impl<T, U: Convert<T> + SerdeProject> Convert<Option<T>> for ProjectOption<T, U> {
@@ -44,6 +57,19 @@ impl<T, U: Convert<T> + SerdeProject> SerdeProject for ProjectOption<T, U> {
 ///
 /// The underlying data structure is a [`Vec`], 
 /// so you can use `#[serde(skip_serializing_if("Vec::is_empty"))]`.
+/// 
+/// # Example
+/// ```
+/// # /*
+/// // Id implements `SerdeProject` but not `Serialize`
+/// #[serde_project("ProjectVec<Vec<Id>>")]
+/// ids: Vec<Id>
+/// 
+/// // `Convert` to another type through the second argument.
+/// #[serde_project("ProjectVec<Vec<Handle<Image>>, PathHandle<Image>>")]
+/// images: Vec<Handle<Image>>
+/// # */
+/// ```
 pub type ProjectVec<Iterator, Project = <Iterator as IterVec>::Item> = ProjectVecRaw<Iterator, Project>;
 
 #[derive(Debug, RefCast)]
@@ -193,6 +219,20 @@ impl<T, K, V> IterTuple for T where for<'t> &'t T: IntoIterator<Item = (&'t K, &
 ///
 /// The underlying data structure is a [`Map`], 
 /// so you can use `#[serde(skip_serializing_if("Map::is_empty"))]`.
+/// 
+/// # Examples
+/// 
+/// ```
+/// # /*
+/// // Id implements `SerdeProject` but not `Serialize`
+/// #[serde_project("ProjectMap<HashMap<String, Id>>")]
+/// ids: HashMap<String, Id>
+/// 
+/// // `Convert` key and value to other types through the remaining arguments.
+/// #[serde_project("ProjectMap<BTreeMap<String, Handle<Image>>, String, PathHandle<Image>>")]
+/// images: BTreeMap<String, Handle<Image>>
+/// # */
+/// ```
 pub type ProjectMap<Map, KeyProject = <Map as IterTuple>::Key, ValueProject = <Map as IterTuple>::Value> 
     = ProjectMapRaw<Map, KeyProject, ValueProject>;
 
