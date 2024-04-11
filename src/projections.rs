@@ -192,7 +192,7 @@ impl<T, K> IterVec for T where for<'t> &'t T: IntoIterator<Item = &'t K> {
     type Item = K;
 
     fn iter(&self) -> impl Iterator<Item = &Self::Item> {
-        (&self).into_iter()
+        self.into_iter()
     }
 }
 
@@ -211,7 +211,7 @@ impl<T, K, V> IterTuple for T where for<'t> &'t T: IntoIterator<Item = (&'t K, &
     type Value = V;
 
     fn iter(&self) -> impl Iterator<Item = (&Self::Key, &Self::Value)> {
-        (&self).into_iter()
+        self.into_iter()
     }
 }
 
