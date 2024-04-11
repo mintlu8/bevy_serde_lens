@@ -3,7 +3,7 @@ use bevy_asset::{Asset, Handle};
 use bevy_reflect::TypePath;
 use bevy_serde_project::SerdeProject;
 use bevy_serde_project::asset::PathHandle;
-use bevy_serde_project::{ProjectOption, ProjectVec, ProjectMap, ProjectVecIter, ProjectMapIter};
+use bevy_serde_project::{ProjectOption, ProjectVec, ProjectMap};
 // This is not allowed
 // #[derive(SerdeProject)]
 // pub struct Nil;
@@ -50,23 +50,23 @@ struct MySprite2 (
     #[serde_project("ProjectOption<Handle<Image>, PathHandle<Image>>")]
     Option<Handle<Image>>,
 
-    #[serde_project("ProjectVec<Vec<Handle<Image>>, Handle<Image>, PathHandle<Image>>")]
+    #[serde_project("ProjectVec<Vec<Handle<Image>>, PathHandle<Image>>")]
     Vec<Handle<Image>>,
 
-    #[serde_project("ProjectMap<HashMap<Handle<Image>, Handle<Image>>, Handle<Image>, Handle<Image>, PathHandle<Image>, PathHandle<Image>>")]
+    #[serde_project("ProjectMap<HashMap<Handle<Image>, Handle<Image>>, PathHandle<Image>, PathHandle<Image>>")]
     HashMap<Handle<Image>, Handle<Image>>,
 
 
-    #[serde_project("ProjectVec<HashSet<i32>, i32, i32>")]
+    #[serde_project("ProjectVec<HashSet<i32>, i32>")]
     HashSet<i32>,
 
-    #[serde_project("ProjectVecIter<BTreeSet<i32>>")]
+    #[serde_project("ProjectVec<BTreeSet<i32>>")]
     BTreeSet<i32>,
 
     #[serde_project("ProjectMap<BTreeMap<i32, f32>, i32, f32>")]
     BTreeMap<i32, f32>,
 
-    #[serde_project("ProjectMapIter<BTreeMap<i32, f32>>")]
+    #[serde_project("ProjectMap<BTreeMap<i32, f32>>")]
     BTreeMap<i32, f32>
 );
 

@@ -40,8 +40,11 @@ impl<T, U: Convert<T> + SerdeProject> SerdeProject for ProjectOption<T, U> {
     }
 }
 
-/// Alias for [`ProjectVec`], given type must additionally be [`IntoIterator`].
-pub type ProjectVecIter<Iterator, Project = <Iterator as IntoIterator>::Item> = ProjectVec<Iterator, <Iterator as IntoIterator>::Item, Project>;
+/// A projection that serializes a [`Vec`] like container of [`SerdeProject`] types.
+///
+/// The underlying data structure is a [`Vec`], 
+/// so you can use `#[serde(skip_serializing_if("Vec::is_empty"))]`.
+pub type ProjectVec<Iterator, Project = <Iterator as IterVec>::Item> = ProjectVecRaw<Iterator, Project>;
 
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
@@ -49,11 +52,11 @@ pub type ProjectVecIter<Iterator, Project = <Iterator as IntoIterator>::Item> = 
 ///
 /// The underlying data structure is a [`Vec`], 
 /// so you can use `#[serde(skip_serializing_if("Vec::is_empty"))]`.
-pub struct ProjectVec<I: FromIterator<T>, T, U: Convert<T> + SerdeProject=T>(I, PhantomData<U>) where for<'t> &'t I: IntoIterator<Item = &'t T>;
+pub struct ProjectVecRaw<Iter: IterVec + FromIterator<Iter::Item>, T: Convert<Iter::Item> + SerdeProject>(Iter, PhantomData<T>);
 
-impl<I: FromIterator<T>, T, U: Convert<T> + SerdeProject> Convert<I> for ProjectVec<I, T, U> where for<'t> &'t I: IntoIterator<Item = &'t T> {
+impl<I: IterVec + FromIterator<I::Item>, T: Convert<I::Item> + SerdeProject> Convert<I> for ProjectVecRaw<I, T> {
     fn ser(input: &I) -> &Self {
-        ProjectVec::<I, T, U>::ref_cast(input)
+        ProjectVecRaw::<I, T>::ref_cast(input)
     }
 
     fn de(self) -> I {
@@ -61,21 +64,21 @@ impl<I: FromIterator<T>, T, U: Convert<T> + SerdeProject> Convert<I> for Project
     }
 }
 
-impl<I: FromIterator<T>, T, U: Convert<T> + SerdeProject> SerdeProject for ProjectVec<I, T, U> where for<'t> &'t I: IntoIterator<Item = &'t T> {
-    type Ctx = U::Ctx;
+impl<I: IterVec + FromIterator<I::Item>, T: Convert<I::Item> + SerdeProject> SerdeProject for ProjectVecRaw<I, T> {
+    type Ctx = T::Ctx;
 
-    type Ser<'t> = Vec<U::Ser<'t>> where I: 't, T: 't, U: 't;
+    type Ser<'t> = Vec<T::Ser<'t>> where I: 't, T: 't;
 
-    type De<'de> = Vec<U::De<'de>>;
+    type De<'de> = Vec<T::De<'de>>;
 
     fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
-        (&self.0).into_iter().map(|x| U::ser(x).to_ser(ctx)).collect()
+        self.0.iter().map(|x| T::ser(x).to_ser(ctx)).collect()
     }
 
     fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
         Ok(Self(
             de.into_iter()
-                .map(|de|Ok(U::de(U::from_de(ctx, de)?)))
+                .map(|de|Ok(T::de(T::from_de(ctx, de)?)))
                 .collect::<Result<I, BoxError>>()?, 
             PhantomData
         ))
@@ -150,20 +153,48 @@ impl<'de, K: Deserialize<'de>, V: Deserialize<'de>> Visitor<'de> for Map<K, V> {
     }
 }
 
-/// Alias for [`IntoIterator`] with `(Key, Value)` items.
+
+/// Alias for [`IntoIterator`] for `&Self` with `(&Key, &Value)` items.
+pub trait IterVec {
+    type Item;
+
+    #[doc(hidden)]
+    fn iter(&self) -> impl Iterator<Item = &Self::Item>;
+}
+
+impl<T, K> IterVec for T where for<'t> &'t T: IntoIterator<Item = &'t K> {
+    type Item = K;
+
+    fn iter(&self) -> impl Iterator<Item = &Self::Item> {
+        (&self).into_iter()
+    }
+}
+
+
+/// Alias for [`IntoIterator`] for `&Self` with `(&Key, &Value)` items.
 pub trait IterTuple {
     type Key;
     type Value;
+
+    #[doc(hidden)]
+    fn iter(&self) -> impl Iterator<Item = (&Self::Key, &Self::Value)>;
 }
 
-impl<T, K, V> IterTuple for T where T: IntoIterator<Item = (K, V)> {
+impl<T, K, V> IterTuple for T where for<'t> &'t T: IntoIterator<Item = (&'t K, &'t V)> {
     type Key = K;
     type Value = V;
+
+    fn iter(&self) -> impl Iterator<Item = (&Self::Key, &Self::Value)> {
+        (&self).into_iter()
+    }
 }
 
-/// Alias for [`ProjectMap`], given type must additionally be [`IterTuple`].
-pub type ProjectMapIter<Map, KeyProject = <Map as IterTuple>::Key, ValueProject = <Map as IterTuple>::Value> 
-    = ProjectMap<Map, <Map as IterTuple>::Key, <Map as IterTuple>::Value, KeyProject, ValueProject>;
+/// A projection that serializes a [`Map`] like container of [`SerdeProject`] types.
+///
+/// The underlying data structure is a [`Map`], 
+/// so you can use `#[serde(skip_serializing_if("Map::is_empty"))]`.
+pub type ProjectMap<Map, KeyProject = <Map as IterTuple>::Key, ValueProject = <Map as IterTuple>::Value> 
+    = ProjectMapRaw<Map, KeyProject, ValueProject>;
 
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
@@ -171,11 +202,15 @@ pub type ProjectMapIter<Map, KeyProject = <Map as IterTuple>::Key, ValueProject 
 ///
 /// The underlying data structure is a [`Map`], 
 /// so you can use `#[serde(skip_serializing_if("Map::is_empty"))]`.
-pub struct ProjectMap<Map: FromIterator<(K, V)>, K, V, K2: Convert<K> + SerdeProject=K, V2: Convert<V> + SerdeProject=V>(Map, PhantomData<(K, V, K2, V2)>) where for<'t> &'t Map: IntoIterator<Item = (&'t K, &'t V)>;
+pub struct ProjectMapRaw<
+    Map: FromIterator<(Map::Key, Map::Value)> + IterTuple, 
+    K: Convert<Map::Key> + SerdeProject, 
+    V: Convert<Map::Value> + SerdeProject
+>(Map, PhantomData<(K, V)>);
 
-impl<I: FromIterator<(K, V)>, K, V, K2: Convert<K> + SerdeProject, V2: Convert<V> + SerdeProject> Convert<I> for ProjectMap<I, K, V, K2, V2> where for<'t> &'t I: IntoIterator<Item = (&'t K, &'t V)> {
+impl<I: FromIterator<(I::Key, I::Value)> + IterTuple, K: Convert<I::Key> + SerdeProject, V: Convert<I::Value> + SerdeProject> Convert<I> for ProjectMapRaw<I, K, V> {
     fn ser(input: &I) -> &Self {
-        ProjectMap::<I, K, V, K2, V2>::ref_cast(input)
+        ProjectMapRaw::<I, K, V>::ref_cast(input)
     }
 
     fn de(self) -> I {
@@ -183,17 +218,17 @@ impl<I: FromIterator<(K, V)>, K, V, K2: Convert<K> + SerdeProject, V2: Convert<V
     }
 }
 
-impl<I: FromIterator<(K, V)>, K, V, K2: Convert<K> + SerdeProject, V2: Convert<V> + SerdeProject> SerdeProject for ProjectMap<I, K, V, K2, V2> where for<'t> &'t I: IntoIterator<Item = (&'t K, &'t V)> {
+impl<I: FromIterator<(I::Key, I::Value)> + IterTuple, K: Convert<I::Key> + SerdeProject, V: Convert<I::Value> + SerdeProject> SerdeProject for ProjectMapRaw<I, K, V> {
     type Ctx = WorldAccess;
 
-    type Ser<'t> = Map<K2::Ser<'t>, V2::Ser<'t>> where I: 't, K: 't, V: 't,  K2: 't, V2: 't;
+    type Ser<'t> = Map<K::Ser<'t>, V::Ser<'t>> where I: 't, K: 't, V: 't;
 
-    type De<'de> = Map<K2::De<'de>, V2::De<'de>>;
+    type De<'de> = Map<K::De<'de>, V::De<'de>>;
 
     fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
-        (&self.0).into_iter().map(|(k ,v)| Ok((
-            K2::ser(k).to_ser(&<K2::Ctx as FromWorldAccess>::from_world(ctx)?)?, 
-            V2::ser(v).to_ser(&<V2::Ctx as FromWorldAccess>::from_world(ctx)?)?, 
+        self.0.iter().map(|(k ,v)| Ok((
+            K::ser(k).to_ser(&<K::Ctx as FromWorldAccess>::from_world(ctx)?)?, 
+            V::ser(v).to_ser(&<V::Ctx as FromWorldAccess>::from_world(ctx)?)?, 
         ))).collect()
     }
 
@@ -201,8 +236,8 @@ impl<I: FromIterator<(K, V)>, K, V, K2: Convert<K> + SerdeProject, V2: Convert<V
         Ok(Self(
             de.into_iter()
                 .map(|(k, v)|{
-                    let k = K2::de(K2::from_de(&mut <K2::Ctx as FromWorldAccess>::from_world_mut(ctx)?, k)?);
-                    let v = V2::de(V2::from_de(&mut <V2::Ctx as FromWorldAccess>::from_world_mut(ctx)?, v)?);
+                    let k = K::de(K::from_de(&mut <K::Ctx as FromWorldAccess>::from_world_mut(ctx)?, k)?);
+                    let v = V::de(V::from_de(&mut <V::Ctx as FromWorldAccess>::from_world_mut(ctx)?, v)?);
                     Ok((k, v))
                 })
                 .collect::<Result<I, BoxError>>()?, 

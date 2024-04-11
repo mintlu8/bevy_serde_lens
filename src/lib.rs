@@ -17,7 +17,7 @@ pub mod asset;
 pub mod interning;
 pub mod entity;
 mod projections;
-pub use projections::*;
+pub use projections::{ProjectOption, ProjectMap, ProjectVec, Map};
 pub use bevy_serde_project_derive::SerdeProject;
 
 #[allow(unused)]
