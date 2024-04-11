@@ -4,7 +4,6 @@ use std::any::type_name;
 use std::fmt::Display;
 
 use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
-use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -17,7 +16,8 @@ pub mod typetagged;
 pub mod asset;
 pub mod interning;
 pub mod entity;
-
+mod projections;
+pub use projections::*;
 pub use bevy_serde_project_derive::SerdeProject;
 
 #[allow(unused)]
@@ -199,34 +199,13 @@ pub trait Convert<In> {
     fn de(self) -> In;
 }
 
-#[derive(Debug, RefCast)]
-#[repr(transparent)]
-/// A projection that serializes a [`Vec`] like container of [`SerdeProject`] types.
-pub struct ProjectVec<T: FromIterator<A>, A: SerdeProject + 'static>(T) where for<'t> &'t T: IntoIterator<Item = &'t A>;
-
-impl<T: FromIterator<A>, A: SerdeProject + 'static> Convert<T> for ProjectVec<T, A> where for<'t> &'t T: IntoIterator<Item = &'t A> {
+impl<T> Convert<T> for T {
     fn ser(input: &T) -> &Self {
-        ProjectVec::<T, A>::ref_cast(input)
+        input
     }
 
     fn de(self) -> T {
-        self.0
-    }
-}
-
-impl<T: FromIterator<A>, A: SerdeProject + 'static> SerdeProject for ProjectVec<T, A> where for<'t> &'t T: IntoIterator<Item = &'t A> {
-    type Ctx = A::Ctx;
-
-    type Ser<'t> = Vec<A::Ser<'t>> where T: 't;
-
-    type De<'de> = Vec<A::De<'de>>;
-
-    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, BoxError> {
-        (&self.0).into_iter().map(|x| x.to_ser(ctx)).collect()
-    }
-
-    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, BoxError> {
-        Ok(Self(de.into_iter().map(|de|A::from_de(ctx, de)).collect::<Result<_, _>>()?))
+        self
     }
 }
 

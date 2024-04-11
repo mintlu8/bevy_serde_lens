@@ -1,9 +1,9 @@
-use std::{any::type_name, collections::BTreeMap, marker::PhantomData};
+use std::{any::type_name, marker::PhantomData};
 
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children};
 use itertools::Itertools;
-use crate::{BevyObject, BindBevyObject, BoxError, Error, WorldUtil};
+use crate::{BevyObject, BindBevyObject, BoxError, Error, Map, WorldUtil};
 
 /// [`BevyObject`] equivalent to `()`.
 #[derive(Debug, Clone, Copy, Default)]
@@ -155,21 +155,20 @@ impl<T> BevyObject for ChildVec<T> where T: BevyObject {
 
 
 /// Extractor for matching [`BevyObject`]s on a [`Children`].
-/// Unlike [`ChildVec`] this tries to present a map like look 
-/// and requires unique keys.
+/// 
+/// Unlike [`ChildVec`] this tries to present a map.
 ///
-/// The underlying data structure is a [`BTreeMap`], 
-/// so you can use `#[serde(skip_serializing_if("BTreeMap::is_empty"))]`.
+/// The underlying data structure is a [`Map`], 
+/// so you can use `#[serde(skip_serializing_if("Map::is_empty"))]`.
 pub struct ChildMap<K, V>(PhantomData<(K, V)>);
 
-impl<K, V> BevyObject for ChildMap<K, V> where 
-        K: BevyObject, V: BevyObject, for<'t> K::Ser<'t>:Ord, for<'t> K::De<'t>: Ord  {
-    type Ser<'t> = BTreeMap<K::Ser<'t>, V::Ser<'t>> where K: 't, V: 't;
-    type De<'de> = BTreeMap<K::De<'de>, V::De<'de>>;
+impl<K, V> BevyObject for ChildMap<K, V> where K: BevyObject, V: BevyObject {
+    type Ser<'t> = Map<K::Ser<'t>, V::Ser<'t>> where K: 't, V: 't;
+    type De<'de> = Map<K::De<'de>, V::De<'de>>;
 
     fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, BoxError> {
         let Some(children) = world.entity_ok(entity)?.get::<Children>() else {
-            return Ok(Some(BTreeMap::new()));
+            return Ok(Some(Map::new()));
         };
         children.iter()
             .filter_map(|entity|Some ((
@@ -183,7 +182,7 @@ impl<K, V> BevyObject for ChildMap<K, V> where
                     value: type_name::<V>(), 
                 })?
             ))})
-            .collect::<Result<BTreeMap<_, _>, _>>()
+            .collect::<Result<Map<_, _>, _>>()
             .map(Some)
     }
 
