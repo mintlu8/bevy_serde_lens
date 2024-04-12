@@ -109,7 +109,7 @@ impl WorldExtension for App {
     }
 }
 
-
+/// A batch save/load type.
 pub trait SaveLoad: Sized {
     const COUNT: usize;
     type First: BindBevyObject;

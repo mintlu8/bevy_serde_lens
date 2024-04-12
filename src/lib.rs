@@ -10,7 +10,7 @@ pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_w
 mod extractors;
 pub use extractors::{Null, Object, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
 mod save_load;
-pub use save_load::{WorldExtension, Join};
+pub use save_load::{WorldExtension, Join, SaveLoad};
 mod macros;
 pub mod typetagged;
 pub mod asset;
