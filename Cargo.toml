@@ -38,7 +38,7 @@ rustc-hash = "1.1.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls = "1.0.1"
-bevy_serde_project_derive = { version = "0.1.0", path = "./derive", optional = true }
+bevy_serde_project_derive = { version = "0.2.0", path = "./derive", optional = true }
 
 [dev-dependencies]
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
