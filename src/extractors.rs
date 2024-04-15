@@ -61,8 +61,12 @@ impl<T: FromWorld + Component + 'static> BevyObject for DefaultInit<T> {
 
     type De<'de> = ();
 
-    fn to_ser(_: &World, _: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>> {
-        Ok(Some(()))
+    fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>> {
+        if world.entity_ok(entity)?.contains::<T>() {
+            Ok(Some(()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn from_de(world: &mut World, entity: Entity, _: Self::De<'_>) -> Result<(), Box<Error>> {

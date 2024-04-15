@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
 mod extractors;
-pub use extractors::{Null, Object, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
+pub use extractors::{Null, Object, DefaultInit, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
 mod save_load;
 pub use save_load::{WorldExtension, Join, SaveLoad};
 mod macros;
