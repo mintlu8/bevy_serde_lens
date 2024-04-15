@@ -1,6 +1,6 @@
 use std::{any::type_name, marker::PhantomData};
 
-use bevy_ecs::{entity::Entity, world::World};
+use bevy_ecs::{entity::Entity, world::{FromWorld, World}};
 use bevy_hierarchy::{BuildWorldChildren, Children};
 use itertools::Itertools;
 use crate::{BevyObject, BindBevyObject, BoxError, Error, Map, WorldUtil};
@@ -49,6 +49,29 @@ impl<T> BevyObject for Maybe<T> where T: BevyObject {
         Ok(())
     }
 }
+
+/// Convert a [`Default`] or [`FromWorld`] component to [`BevyObject`] using
+/// default initialization. 
+/// 
+/// Use `#[serde(skip)]` to skip serializing this component completely.
+pub struct DefaultInit<T>(T);
+
+impl<T: FromWorld + Component + 'static> BevyObject for DefaultInit<T> {
+    type Ser<'t> = ();
+
+    type De<'de> = ();
+
+    fn to_ser(_: &World, _: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>> {
+        Ok(Some(()))
+    }
+
+    fn from_de(world: &mut World, entity: Entity, _: Self::De<'_>) -> Result<(), Box<Error>> {
+        let item = T::from_world(world);
+        world.entity_mut_ok(entity)?.insert(item);
+        Ok(())
+    }
+}
+
 
 /// Extractor for a single [`BevyObject`] in [`Children`]
 /// instead of the entity itself. 
