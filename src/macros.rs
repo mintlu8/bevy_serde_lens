@@ -96,7 +96,7 @@ macro_rules! bind_object {
             }
 
             #[derive($crate::serde::Deserialize)]
-            #[serde(rename = $name, bound = "'t: 'de")]
+            #[serde(rename = $name, bound = "'t: 'de, 'de: 't")]
             $(#[$($head_attr)*])*
             pub struct __De<'t> {
                 $(

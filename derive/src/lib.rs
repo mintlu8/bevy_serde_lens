@@ -274,7 +274,7 @@ fn parse_enum(name: Ident, generics: Generics, attrs: Vec<Attribute>, variants: 
 
             #[derive(__bsp::serde::Deserialize)]
             #(#head_attrs)*
-            #[serde(rename = #name_str, bound="'__sp: 'de")]
+            #[serde(rename = #name_str, bound="'__sp: 'de, 'de: '__sp")]
             pub enum __De #derived_generics {
                 #(#(#serde_attrs)* #de_fields,)*
                 #[serde(skip)]
