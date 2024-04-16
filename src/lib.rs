@@ -3,7 +3,7 @@
 use std::any::type_name;
 use std::fmt::Display;
 
-use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
+use bevy_ecs::{component::Component, query::QueryFilter, system::Resource, world::{EntityRef, EntityWorldMut}};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -26,7 +26,7 @@ use bevy_asset::Handle;
 use bevy_hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{world::World, entity::Entity};
+pub use bevy_ecs::{world::World, entity::Entity, query::With};
 use bevy_ecs::world::Mut;
 #[doc(hidden)]
 pub use serde;
@@ -136,8 +136,12 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
 /// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
 ///
 /// This means `world.save::<T>()` will try to serialize all entities with component T.
-pub trait BindBevyObject: Component {
+pub trait BindBevyObject {
     type BevyObject: BevyObject;
+
+    type Filter: QueryFilter;
+
+    //fn as_list_of_entities(world: &mut World) -> Vec<Entity>;
 
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.

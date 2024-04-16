@@ -1,4 +1,4 @@
-use bevy_ecs::{component::Component, world::World};
+use bevy_ecs::{component::Component, query::With, world::World};
 use bevy_serde_project::{batch, bind_object, SerdeProject, WorldExtension};
 use serde_json::json;
 
@@ -22,6 +22,11 @@ bind_object!(A as "A");
 bind_object!(B as "B");
 bind_object!(C as "C");
 bind_object!(D as "D");
+
+bind_object!(pub struct ABWithCD = (With<A>, With<B>, With<C>, With<D>) as "AB" {
+    a => A,
+    b => B,
+});
 
 type AB = batch!(A, B);
 type BD = batch!(B, D);

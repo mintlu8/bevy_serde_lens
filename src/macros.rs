@@ -7,6 +7,22 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// or the [`Object`] extractor.
 ///
 /// # Syntax
+/// 
+/// * Bind a component to itself:
+///
+/// ```
+/// // This is required for serializing `Weapon` directly.
+/// bind_object!(Weapon as "weapon");
+/// ```
+/// 
+/// * Bind a component to a `QueryFilter`:
+///
+/// ```
+/// // With<Weapon> must be provided.
+/// bind_object!(Weapon = (With<Weapon>, With<ActiveWeapon>) as "weapon");
+/// ```
+/// 
+/// * Bind a complex object to a component:
 ///
 /// ```
 /// // `as "Name"` sets the serialized type name.
@@ -32,12 +48,6 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// });
 /// ```
 ///
-/// Or just bind a component to itself:
-///
-/// ```
-/// // This is required for serializing `Weapon` directly.
-/// bind_object!(Weapon as "weapon");
-/// ```
 ///
 /// # Note
 ///
@@ -55,10 +65,25 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// break non-self-describing formats.
 #[macro_export]
 macro_rules! bind_object {
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $name: ident $($tt: tt)*) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        $vis struct $name;
+        $crate::bind_object!(
+            $(#[$($head_attr)*])* $name $($tt)*
+        );
+    };
+
     ($(#[$($head_attr: tt)*])* $main: ty as $name: literal) => {
+        $crate::bind_object!(
+            $(#[$($head_attr)*])* $main = $crate::With<$main> as $name
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $main: ty = $filter: ty as $name: literal) => {
         #[allow(unused)]
         const _: () = {
             impl $crate::BindBevyObject for $main {
+                type Filter = $filter;
                 type BevyObject = $main;
 
                 fn name() -> &'static str {
@@ -71,9 +96,20 @@ macro_rules! bind_object {
     ($(#[$($head_attr: tt)*])* $main: ty as $name: literal {
         $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
     }) => {
+        $crate::bind_object!(
+            $(#[$($head_attr)*])* $main = $crate::With<$main> as $name {
+                $($(#[$($attr)*])* $field => $ty),*
+            }
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $main: ty = $filter: ty as $name: literal {
+        $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
+    }) => {
         #[allow(unused)]
         const _: () = {
             impl $crate::BindBevyObject for $main {
+                type Filter = $filter;
                 type BevyObject = __BoundObject;
 
                 fn name() -> &'static str {
@@ -111,7 +147,7 @@ macro_rules! bind_object {
                 type Ser<'t> = __Ser<'t>;
                 type De<'de> = __De<'de>;
                 fn to_ser(world: & $crate::World, entity: $crate::Entity) -> Result<Option<Self::Ser<'_>>, Box<$crate::Error>> {
-                    // Returns `None` is primary component not found, error otherwise.
+                    // Returns `None` if primary component not found, error otherwise.
                     if world.get_entity(entity).and_then(|e| e.get::<$main>()).is_none() {
                         return Ok(None);
                     }
