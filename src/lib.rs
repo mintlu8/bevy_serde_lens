@@ -136,7 +136,7 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     }
 }
 
-/// Associate a [`BevyObject`] a [`EntityFilter`], usually a component as `With<Component>`.
+/// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///
 /// This means `world.save::<T>()` will try to serialize all entities that satisfies the filter.
 pub trait BindBevyObject {

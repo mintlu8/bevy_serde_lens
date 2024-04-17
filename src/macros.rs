@@ -18,8 +18,14 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// * Bind a component to a `QueryFilter`:
 ///
 /// ```
-/// // With<Weapon> must be provided.
-/// bind_object!(Weapon = (With<Weapon>, With<ActiveWeapon>) as "weapon");
+/// // With<ActiveWeapon> must be provided to roundtrip.
+/// bind_object!(ActiveWeapon = (With<Weapon>, With<ActiveWeapon>) as "weapon");
+/// ```
+/// 
+/// To create this type instead: 
+/// 
+/// ```
+/// bind_object!(pub struct WeaponSerialize = (With<Weapon>, With<ActiveWeapon>) as "weapon");
 /// ```
 /// 
 /// * Bind a complex object to a component:
