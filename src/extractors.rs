@@ -26,7 +26,7 @@ impl BevyObject for Null {
 #[allow(unused)]
 use bevy_ecs::component::Component;
 
-/// Extractor for casting a [`Component`] to its bound [`BevyObject`].
+/// Extractor for casting a [`BindBevyObject`] to its bound [`BevyObject`].
 pub type Object<T> = <T as BindBevyObject>::BevyObject;
 
 /// Extractor that allows a [`BevyObject`] to be missing.

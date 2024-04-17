@@ -1,4 +1,4 @@
-use bevy_ecs::{component::Component, world::World};
+use bevy_ecs::{component::Component, query::With, world::World};
 use bevy_serde_project::{batch, bind_object, SerdeProject, WorldExtension};
 use serde_json::json;
 
@@ -22,6 +22,11 @@ bind_object!(A as "A");
 bind_object!(B as "B");
 bind_object!(C as "C");
 bind_object!(D as "D");
+
+bind_object!(pub struct ABWithCD = (With<A>, With<B>, With<C>, With<D>) as "AB" {
+    a => A,
+    b => B,
+});
 
 type AB = batch!(A, B);
 type BD = batch!(B, D);
@@ -114,4 +119,26 @@ pub fn test() {
         "D": [69, 420],
     }));
 
+    world.despawn_bound_objects::<ABCD>();
+    assert_eq!(world.entities().len(), 0);
+
+    world.spawn((
+        A('y'),
+        B(3.0),
+        C("Ferris".to_owned()),
+        D(69),
+    ));
+
+    world.spawn((
+        A('z'),
+        B(4.0),
+    ));
+    let value = world.save::<ABWithCD, _>(serde_json::value::Serializer).unwrap();
+
+    assert_eq!(value, json!([
+        {
+            "a": "y",
+            "b": 3.0,
+        }
+    ]));
 }

@@ -17,8 +17,11 @@ pub mod asset;
 pub mod interning;
 pub mod entity;
 mod projections;
+mod filter;
+
 pub use projections::{ProjectOption, ProjectMap, ProjectVec, Map};
 pub use bevy_serde_project_derive::SerdeProject;
+pub use filter::EntityFilter;
 
 #[allow(unused)]
 use bevy_asset::Handle;
@@ -26,7 +29,7 @@ use bevy_asset::Handle;
 use bevy_hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{world::World, entity::Entity};
+pub use bevy_ecs::{world::World, entity::Entity, query::With};
 use bevy_ecs::world::Mut;
 #[doc(hidden)]
 pub use serde;
@@ -133,11 +136,13 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     }
 }
 
-/// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
+/// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///
-/// This means `world.save::<T>()` will try to serialize all entities with component T.
-pub trait BindBevyObject: Component {
+/// This means `world.save::<T>()` will try to serialize all entities that satisfies the filter.
+pub trait BindBevyObject {
     type BevyObject: BevyObject;
+
+    type Filter: EntityFilter;
 
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.
