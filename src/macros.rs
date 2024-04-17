@@ -148,7 +148,8 @@ macro_rules! bind_object {
                 type De<'de> = __De<'de>;
                 fn to_ser(world: & $crate::World, entity: $crate::Entity) -> Result<Option<Self::Ser<'_>>, Box<$crate::Error>> {
                     // Returns `None` if primary component not found, error otherwise.
-                    if world.get_entity(entity).and_then(|e| e.get::<$main>()).is_none() {
+                    if world.get_entity(entity)
+                        .map(|e| <<$main as $crate::BindBevyObject>::Filter as $crate::EntityFilter>::filter(e)) != Some(true) {
                         return Ok(None);
                     }
                     Ok(Some(__Ser {

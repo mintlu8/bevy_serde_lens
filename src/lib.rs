@@ -3,7 +3,7 @@
 use std::any::type_name;
 use std::fmt::Display;
 
-use bevy_ecs::{component::Component, query::QueryFilter, system::Resource, world::{EntityRef, EntityWorldMut}};
+use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod from_world;
 pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
@@ -17,8 +17,11 @@ pub mod asset;
 pub mod interning;
 pub mod entity;
 mod projections;
+mod filter;
+
 pub use projections::{ProjectOption, ProjectMap, ProjectVec, Map};
 pub use bevy_serde_project_derive::SerdeProject;
+pub use filter::EntityFilter;
 
 #[allow(unused)]
 use bevy_asset::Handle;
@@ -133,15 +136,13 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     }
 }
 
-/// Associate a [`BevyObject`] to all [`Entity`]s with a specific [`Component`].
+/// Associate a [`BevyObject`] a [`EntityFilter`], usually a component as `With<Component>`.
 ///
-/// This means `world.save::<T>()` will try to serialize all entities with component T.
+/// This means `world.save::<T>()` will try to serialize all entities that satisfies the filter.
 pub trait BindBevyObject {
     type BevyObject: BevyObject;
 
-    type Filter: QueryFilter;
-
-    //fn as_list_of_entities(world: &mut World) -> Vec<Entity>;
+    type Filter: EntityFilter;
 
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.

@@ -119,4 +119,26 @@ pub fn test() {
         "D": [69, 420],
     }));
 
+    world.despawn_bound_objects::<ABCD>();
+    assert_eq!(world.entities().len(), 0);
+
+    world.spawn((
+        A('y'),
+        B(3.0),
+        C("Ferris".to_owned()),
+        D(69),
+    ));
+
+    world.spawn((
+        A('z'),
+        B(4.0),
+    ));
+    let value = world.save::<ABWithCD, _>(serde_json::value::Serializer).unwrap();
+
+    assert_eq!(value, json!([
+        {
+            "a": "y",
+            "b": 3.0,
+        }
+    ]));
 }
