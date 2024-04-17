@@ -7,6 +7,18 @@ pub trait EntityFilter: QueryFilter {
     fn filter(entity: EntityRef) -> bool;
 }
 
+impl EntityFilter for () {
+    fn filter(_: EntityRef) -> bool {
+        true
+    }
+}
+
+impl EntityFilter for Or<()> {
+    fn filter(_: EntityRef) -> bool {
+        true
+    }
+}
+
 impl<T> EntityFilter for With<T> where T: Component{
     fn filter(entity: EntityRef) -> bool {
         entity.contains::<T>()
