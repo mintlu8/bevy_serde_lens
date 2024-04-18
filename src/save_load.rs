@@ -3,6 +3,7 @@ use bevy_ecs::query::QueryState;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use std::cell::RefCell;
+use std::sync::Mutex;
 use std::{borrow::Cow, marker::PhantomData};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
@@ -13,6 +14,27 @@ use crate::{BindBevyObject, BevyObject};
 
 #[allow(unused)]
 use crate::batch;
+
+/// A [`Serialize`] type from a [`World`] reference and a [`SaveLoad`] type.
+pub struct SerializeLens<'t, S: SaveLoad>(Mutex<&'t mut World>, PhantomData<S>);
+ 
+impl<T: SaveLoad> Serialize for SerializeLens<'_, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        self.0.lock().unwrap().save::<T, S>(serializer)
+    }
+}
+
+/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
+pub struct DeserializeLens<'t, S: SaveLoad>(&'t mut World, PhantomData<S>);
+
+impl<'de, T: SaveLoad> DeserializeSeed<'de> for DeserializeLens<'de, T> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+        self.0.load::<T, D>(deserializer)
+    }
+}
+
 
 /// Extension methods on [`World`].
 pub trait WorldExtension {
@@ -30,13 +52,17 @@ pub trait WorldExtension {
     /// Most `serde` frontends provide a serializer, like `serde_json::Deserializer`.
     /// They typically wrap a [`std::io::Read`] and read from that stream.
     fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error>;
+    /// Create a [`Serialize`] type from a [`World`] and a [`SaveLoad`] type.
+    fn as_serialize_lens<S: SaveLoad>(&mut self) -> SerializeLens<S>;
+    /// Create a [`DeserializeSeed`] type from a [`World`] and a [`SaveLoad`] type.
+    fn as_deserialize_lens<S: SaveLoad>(&mut self) -> DeserializeLens<S>;
     /// Despawn all entities in a [`BindBevyObject`] type or a group created by [`batch!`] recursively.
     fn despawn_bound_objects<T: SaveLoad>(&mut self);
     /// Register a type that can be deserialized dynamically.
     fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
     /// Register a type that can be deserialized dynamically from a primitive.
     /// 
-    /// Accepts a `Fn(T) -> Result<T, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
+    /// Accepts a `Fn(T) -> Result<Out, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
     /// 
     /// # Example 
     /// ```
@@ -44,6 +70,7 @@ pub trait WorldExtension {
     /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
     /// ```
     fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
+
 }
 
 impl WorldExtension for World {
@@ -72,6 +99,14 @@ impl WorldExtension for World {
         }
     }
 
+    fn as_serialize_lens<S: SaveLoad>(&mut self) -> SerializeLens<S> {
+        SerializeLens(Mutex::new(self), PhantomData)
+    }
+
+    fn as_deserialize_lens<S: SaveLoad>(&mut self) -> DeserializeLens<S> {
+        DeserializeLens(self, PhantomData)
+    }
+
     fn despawn_bound_objects<T: SaveLoad>(&mut self){
         T::despawn(self)
     }
@@ -94,6 +129,14 @@ impl WorldExtension for App {
 
     fn load<'de, T: SaveLoad, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
         self.world.load::<T, D>(deserializer)
+    }
+
+    fn as_serialize_lens<S: SaveLoad>(&mut self) -> SerializeLens<S> {
+        self.world.as_serialize_lens()
+    }
+
+    fn as_deserialize_lens<S: SaveLoad>(&mut self) -> DeserializeLens<S> {
+        self.world.as_deserialize_lens()
     }
 
     fn despawn_bound_objects<T: SaveLoad>(&mut self){

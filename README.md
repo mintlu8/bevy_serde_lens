@@ -14,6 +14,9 @@ Stateful, structural and human-readable serialization crate for the bevy engine.
 * Serialize stored `Entity`s like smart pointers.
 * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
 * Extremely lightweight and modular. No systems, no plugins.
+* Supports almost every serde format<sup>*</sup>
+
+<sub>* Ergonomics may vary depend on `Serializer`, `Deserializer` and `DeserializeSeed` trait support</sub>
 
 ## Getting Started
 
@@ -77,26 +80,28 @@ This saves each type in a map entry:
 }
 ```
 
-## What if my types aren't `Serialize` and `DeserializeOwned`?
+## FAQ
+
+* What if my types aren't `Serialize` and `DeserializeOwned`?
 
 We can derive or implement `SerdeProject` to convert them into `serde` types.
 
-### I don't own the type
+* I don't own the type
 
 Use `Convert` and the `SerdeProject` macro to cast the type to an owned newtype.
 
-### I have an ID and I want to serialize its content
+* I have an ID and I want to serialize its content
 
 `SerdeProject` allows you to fetch a resource from the world during serialization.
 
-### I have a `Box<dyn T>`
+* I have a `Box<dyn T>`
 
 If you are on a non-wasm platform you can try the `typetag` crate. If not,
 or if you want more control, checkout the `typetagged` module in this crate.
 
 ## The traits and what they do
 
-### `Serialize` and `DeserializeOwned`
+* `Serialize` and `DeserializeOwned`
 
 Any `Serialize` and `DeserializeOwned` type is automatically `SerdeProject` and
 any such `Component` is automatically a `BevyObject`.
@@ -106,7 +111,7 @@ type due to the orphan rule.
 This is where `Convert` and the `SerdeProject`
 macro comes in handy.
 
-### `SerdeProject`
+* `SerdeProject`
 
 `SerdeProject` projects non-serde types into serde types with world access.
 
@@ -114,7 +119,7 @@ The `SerdeProject` macro implements
 `SerdeProject` on type where all fields either implements `SerdeProject` or converts
 to a `SerdeProject` newtype via the `Convert` trait.
 
-#### Example
+### Example
 
 Serialize a `Handle` as its path, stored in `AssetServer`.
 
@@ -129,7 +134,7 @@ struct MySprite {
 }
 ```
 
-### `Convert`
+* `Convert`
 
 Convert allows you to `RefCast` a non-serializable type
 to a newtype that implements `SerdeProject`.
@@ -138,21 +143,26 @@ For example `PathHandle<Handle<T>>` serializes `Handle` as a `String`, while
 `UniqueHandle<Handle<T>>` serializes `Handle` as a `T`.
 This zero-cost conversion can be done via the `ref_cast` crate.
 
-### `BevyObject`
+* `BevyObject`
 
 A `BevyObject` allows an `Entity` to be serialized. This can either be just a component,
 or a combination of components, children, components on children, etc.
 
 All `SerdeProject` components are `BevyObject`s.
 
-### `BindBevyObject`
+* `BindBevyObject`
 
-`BindBevyObject` is a key `Component` that is the entry point for serialization and deserialization.
+`BindBevyObject` is a `QueryFilter`, usually a key component,
+that determines the entry point for serialization and deserialization.
 
-Any entity that has the `Component` but does not satisfy the layout of the bound `BevyObject`
+Any entity that has the `QueryFilter` but does not satisfy the layout of the bound `BevyObject`
 will result in an error.
 
 use the `bind_object!` macro to create a serialization entry.
+
+* `SaveLoad`
+
+Represents a batch serialization type, or contents of a single save file.
 
 ## TypeTag
 
