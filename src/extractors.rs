@@ -113,7 +113,7 @@ impl<T> BevyObject for Child<T> where T: BevyObject {
     }
 
     fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-        let entity = world.spawn(()).id();
+        let entity = world.spawn_empty().id();
         T::from_de(world, entity, de)?;
         world.entity_mut(parent).add_child(entity);
         Ok(())
@@ -142,7 +142,7 @@ impl<T> BevyObject for ChildUnchecked<T> where T: BevyObject {
     }
 
     fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-        let entity = world.spawn(()).id();
+        let entity = world.spawn_empty().id();
         T::from_de(world, entity, de)?;
         world.entity_mut(parent).add_child(entity);
         Ok(())
@@ -172,7 +172,7 @@ impl<T> BevyObject for ChildVec<T> where T: BevyObject {
 
     fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
         for item in de {
-            let entity = world.spawn(()).id();
+            let entity = world.spawn_empty().id();
             T::from_de(world, entity, item)?;
             world.entity_mut(parent).add_child(entity);
         }
@@ -215,7 +215,7 @@ impl<K, V> BevyObject for ChildMap<K, V> where K: BevyObject, V: BevyObject {
 
     fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
         for item in de {
-            let entity = world.spawn(()).id();
+            let entity = world.spawn_empty().id();
             K::from_de(world, entity, item.0)?;
             V::from_de(world, entity, item.1)?;
             world.entity_mut(parent).add_child(entity);

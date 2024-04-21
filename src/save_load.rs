@@ -319,7 +319,7 @@ impl<'a, 'de, T: BindBevyObject> DeserializeSeed<'de> for &'_ mut SingleComponen
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
         let de = <T::BevyObject as BevyObject>::De::deserialize(deserializer)?;
-        let entity = self.world.spawn(()).id();
+        let entity = self.world.spawn_empty().id();
         <T::BevyObject as BevyObject>::from_de(self.world, entity, de)
             .map_err(serde::de::Error::custom)?;
         if let Some(root) = self.root {
