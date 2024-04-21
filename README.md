@@ -60,10 +60,14 @@ This saves a list of Characters as an array:
 To save multiple types of objects in a batch, create a batch serialization type with the `batch!` macro.
 
 ```rust
-type SaveFileOne = batch!(Character, Monster, Terrain);
-world.save::<SaveFileOne>(serializer)
-world.load::<SaveFileOne>(serializer)
-world.despawn_bound_objects::<SaveFileOne>()
+type SaveFile = batch!(
+    Character, Monster, Terrain,
+    // Use `BindResource` to serialize a resource.
+    BindResource<MyResource>,
+);
+world.save::<SaveFile>(serializer)
+world.load::<SaveFile>(serializer)
+world.despawn_bound_objects::<SaveFile>()
 ```
 
 This saves each type in a map entry:
@@ -76,7 +80,8 @@ This saves each type in a map entry:
         ..
     ],
     "Monster": [ .. ],
-    "Terrain": [ .. ]
+    "Terrain": [ .. ],
+    "MyResource": ..
 }
 ```
 
@@ -159,6 +164,10 @@ Any entity that has the `QueryFilter` but does not satisfy the layout of the bou
 will result in an error.
 
 use the `bind_object!` macro to create a serialization entry.
+
+* `Named`
+
+Provides a serialization name for resources.
 
 * `SaveLoad`
 

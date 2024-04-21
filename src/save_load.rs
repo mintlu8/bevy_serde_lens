@@ -1,5 +1,6 @@
 use bevy_app::App;
 use bevy_ecs::query::QueryState;
+use bevy_ecs::system::Resource;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use std::cell::RefCell;
@@ -10,7 +11,7 @@ use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 
 use crate::typetagged::{scoped, scoped_any, BevyTypeTagged, DeserializeAnyFn, DeserializeAnyServer, IntoTypeTagged, TypeTagServer};
-use crate::{BindBevyObject, BevyObject};
+use crate::{from_world, from_world_mut, BevyObject, BindBevyObject, Named, SerdeProject, WorldUtil};
 
 #[allow(unused)]
 use crate::batch;
@@ -70,7 +71,6 @@ pub trait WorldExtension {
     /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
     /// ```
     fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
-
 }
 
 impl WorldExtension for World {
@@ -155,13 +155,89 @@ impl WorldExtension for App {
 /// A batch save/load type.
 pub trait SaveLoad: Sized {
     const COUNT: usize;
-    type First: BindBevyObject;
+    type First: DeserializeFromMap;
     type Remaining: SaveLoad;
 
     fn save<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error>;
     fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error>;
     fn save_map<S: SerializeMap>(world: &mut World, serializer: &mut S) -> Result<(), S::Error>;
     fn despawn(world: &mut World);
+}
+
+/// Bind a [`Resource`] to be serialized.
+/// 
+/// Requires the resource to implement [`Named`].
+pub struct BindResource<R: Resource + Named>(R);
+
+pub trait DeserializeFromMap {
+    fn name() -> &'static str;
+
+    fn visit_map_single<'de, A>(world: &mut World, map: &mut A) -> Result<(), A::Error> where A: MapAccess<'de>;
+}
+
+impl<T> DeserializeFromMap for T where T: BindBevyObject {
+    fn name() -> &'static str {
+        <T as BindBevyObject>::name()
+    }
+
+    fn visit_map_single<'de, A>(world: &mut World, map: &mut A) -> Result<(), A::Error> where A: MapAccess<'de> {
+        let root = T::get_root(world);
+        map.next_value_seed(&mut SingleComponentSeed {
+            world,
+            root,
+            p: PhantomData::<T>,
+        })?;
+        Ok(())
+    }
+}
+
+impl<R: Resource + SerdeProject + Named> DeserializeFromMap for BindResource<R> {
+    fn name() -> &'static str {
+        R::name()
+    }
+
+    fn visit_map_single<'de, A>(world: &mut World, map: &mut A) -> Result<(), A::Error> where A: MapAccess<'de> {
+        let item = map.next_value::<R::De::<'de>>()?;
+        let res = (||R::from_de(&mut from_world_mut::<R>(world)?, item))()
+            .map_err(serde::de::Error::custom)?;
+        world.insert_resource(res);
+        Ok(())
+    }
+}
+
+impl<R: Resource + SerdeProject + Named> SaveLoad for BindResource<R> {
+    const COUNT: usize = 1;
+    type First = BindResource<R>;
+    type Remaining = Self;
+
+    fn save<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
+        (|| {
+            world.resource_ok::<R>()?.to_ser(&from_world::<R>(world)?)
+        })()
+            .map_err(serde::ser::Error::custom)
+            .and_then(|x| x.serialize(serializer))
+    }
+
+    fn load<'de, D: Deserializer<'de>>(world: &mut World, deserializer: D) -> Result<(), D::Error> {
+        let item = R::De::deserialize(deserializer)?;
+        let res = (||R::from_de(&mut from_world_mut::<R>(world)?, item))()
+            .map_err(serde::de::Error::custom)?;
+        world.insert_resource(res);
+        Ok(())
+    }
+
+    fn save_map<S: SerializeMap>(world: &mut World, serializer: &mut S) -> Result<(), S::Error> {
+        serializer.serialize_entry(
+            R::name(),
+            &(|| {
+                world.resource_ok::<R>()?.to_ser(&from_world::<R>(world)?)
+            })().map_err(serde::ser::Error::custom)?
+        )
+    }
+
+    fn despawn(world: &mut World) {
+        world.remove_resource::<R>();
+    }
 }
 
 impl<T> SaveLoad for T where T: BindBevyObject {
@@ -261,7 +337,7 @@ impl<'t, T: BindBevyObject> Serialize for SerializeSeed<'t, T> {
     }
 }
 
-impl<A, B> SaveLoad for Join<A, B> where A: BindBevyObject, B: SaveLoad {
+impl<A, B> SaveLoad for Join<A, B> where A: SaveLoad + DeserializeFromMap, B: SaveLoad {
     const COUNT: usize = A::COUNT + B::COUNT;
 
     type First = A;
@@ -355,13 +431,8 @@ pub struct MultiComponentVisitor<'t, T: SaveLoad> {
 
 impl<'t, 'de, T: SaveLoad> MultiComponentVisitor<'t, T> {
     fn visit_map_single<A>(&mut self, key: &str, map: &mut A) -> Result<(), A::Error> where A: MapAccess<'de>, {
-        if <T::First as BindBevyObject>::name() == key {
-            let root = <T::First as BindBevyObject>::get_root(self.world);
-            map.next_value_seed(&mut SingleComponentSeed {
-                world: self.world,
-                root,
-                p: PhantomData::<T::First>,
-            })?;
+        if T::First::name() == key {
+            <T::First as DeserializeFromMap>::visit_map_single(self.world, map)?;
         } else if T::COUNT > 1 {
             MultiComponentVisitor::<T::Remaining> {
                 world: self.world,

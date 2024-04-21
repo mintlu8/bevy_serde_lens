@@ -10,7 +10,7 @@ pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_w
 mod extractors;
 pub use extractors::{Null, Object, DefaultInit, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
 mod save_load;
-pub use save_load::{WorldExtension, Join, SaveLoad};
+pub use save_load::{WorldExtension, Join, SaveLoad, BindResource};
 mod macros;
 pub mod typetagged;
 pub mod asset;
@@ -134,6 +134,12 @@ impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
     fn from_de(_: &mut (), de: Self::De<'_>) -> Result<Self, BoxError> {
         Ok(de)
     }
+}
+
+/// Specify serialized name of `Resource`.
+pub trait Named {
+    /// Name of the object, must be unique.
+    fn name() -> &'static str;
 }
 
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
