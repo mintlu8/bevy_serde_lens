@@ -1,5 +1,5 @@
-use bevy_ecs::{component::Component, query::With, world::World};
-use bevy_serde_project::{batch, bind_object, SerdeProject, WorldExtension};
+use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
+use bevy_serde_project::{batch, bind_object, BindResource, Named, SerdeProject, WorldExtension};
 use serde_json::json;
 
 #[derive(SerdeProject, Component)]
@@ -18,6 +18,10 @@ pub struct C(String);
 #[serde(transparent)]
 pub struct D(usize);
 
+#[derive(SerdeProject, Resource)]
+#[serde(transparent)]
+pub struct R(usize);
+
 bind_object!(A as "A");
 bind_object!(B as "B");
 bind_object!(C as "C");
@@ -32,6 +36,14 @@ type AB = batch!(A, B);
 type BD = batch!(B, D);
 type CD = batch!(C, D);
 type ABCD = batch!(A, B, C, D);
+
+impl Named for R {
+    fn name() -> &'static str {
+        "R"
+    }
+}
+
+type ABCDR = batch!(A, B, C, D, BindResource<R>);
 
 #[test]
 pub fn test() {
@@ -121,6 +133,34 @@ pub fn test() {
 
     world.despawn_bound_objects::<ABCD>();
     assert_eq!(world.entities().len(), 0);
+
+    world.load::<ABCD, _>(value).unwrap();
+
+    world.insert_resource(R(12));
+
+    let value = world.save::<ABCDR, _>(serde_json::value::Serializer).unwrap();
+
+    assert_eq!(value, json!({
+        "A": ["b", "e", "v", "y"],
+        "B": [3.0, 0.5],
+        "C": ["Ferris", "Crab"],
+        "D": [69, 420],
+        "R": 12,
+    }));
+
+    world.despawn_bound_objects::<ABCDR>();
+    
+    assert_eq!(world.entities().len(), 0);
+
+    assert!(!world.contains_resource::<R>());
+
+    world.load::<ABCDR, _>(value).unwrap();
+
+    assert_eq!(world.entities().len(), 10);
+
+    assert!(world.contains_resource::<R>());
+
+    world.despawn_bound_objects::<ABCDR>();
 
     world.spawn((
         A('y'),
