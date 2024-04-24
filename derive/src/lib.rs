@@ -110,7 +110,7 @@ fn parse_struct_input(name: Ident, generics: Generics, attrs: Vec<Attribute>, fi
             pub struct __Ser #derived_generics #ser_ty #sep
             #[derive(__bsp::serde::Deserialize)]
             #(#head_attrs)*
-            #[serde(rename = #name_str, bound="'__sp: 'de")]
+            #[serde(rename = #name_str, bound="'__sp: 'de, 'de: '__sp")]
             pub struct __De #derived_generics #de_ty #sep
 
             impl #impl_generics __bsp::SerdeProject for #name #ty_genetics #where_clause {

@@ -1,3 +1,4 @@
+#![allow(clippy::approx_constant)]
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_project::{bind_object, SerdeProject, WorldExtension};
