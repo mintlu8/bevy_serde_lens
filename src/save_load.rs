@@ -12,28 +12,29 @@ use crate::batch;
 
 /// Extension methods on [`World`].
 pub trait WorldExtension {
-    /// Save a [`BindBevyObject`] type or a group created by [`batch!`].
+    /// Save a [`BatchSerialization`] type or a group created by [`batch!`].
     ///
     /// # What's a [`Serializer`]?
     ///
     /// Most `serde` frontends provide a serializer, like `serde_json::Serializer`.
     /// They typically wrap a [`std::io::Write`] and write to that stream.
     fn save<T: BatchSerialization, S: Serializer>(&mut self, serializer: S) -> Result<S::Ok, S::Error>;
-    /// Load a [`BindBevyObject`] type or a group created by [`batch!`].
+    /// Load a [`BatchSerialization`] type.
     ///
     /// # What's a [`Deserializer`]?
     ///
     /// Most `serde` frontends provide a serializer, like `serde_json::Deserializer`.
     /// They typically wrap a [`std::io::Read`] and read from that stream.
     fn load<'de, T: BatchSerialization, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error>;
-    /// Create a [`Serialize`] type from a [`World`] and a [`SaveLoad`] type.
+    /// Create a [`Serialize`] type from a [`World`] and a [`BatchSerialization`] type.
     fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S>;
-    /// Create a [`DeserializeSeed`] type from a [`World`] and a [`SaveLoad`] type.
+    /// Create a [`DeserializeSeed`] type from a [`World`] and a [`BatchSerialization`] type.
     fn deserialize_lens<S: BatchSerialization>(&mut self) -> DeserializeLens<S>;
-    /// Create a [`Deserialize`] type from a [`World`] and a [`SaveLoad`] type, 
-    /// while pushing `&mut World` as a thread local in scope.
+    /// Create a [`Deserialize`] scope from a [`World`].
+    /// 
+    /// [`ScopedDeserializeLens`] can be used inside the scope.
     fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T;
-    /// Despawn all entities in a [`BindBevyObject`] type or a group created by [`batch!`] recursively.
+    /// Despawn all entities in a [`BatchSerialization`] type recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);
     /// Register a type that can be deserialized dynamically.
     fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self);
@@ -125,7 +126,7 @@ impl WorldExtension for App {
 }
 
 
-/// A [`Serialize`] type from a [`World`] reference and a [`SaveLoad`] type.
+/// A [`Serialize`] type from a [`World`] reference and a [`BatchSerialization`] type.
 pub struct SerializeLens<'t, S: BatchSerialization>(Mutex<&'t mut World>, PhantomData<S>);
  
 impl<T: BatchSerialization> Serialize for SerializeLens<'_, T> {
@@ -134,7 +135,7 @@ impl<T: BatchSerialization> Serialize for SerializeLens<'_, T> {
     }
 }
 
-/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
+/// A [`DeserializeSeed`] type from a [`World`] reference and a [`BatchSerialization`] type.
 pub struct DeserializeLens<'t, S: BatchSerialization>(&'t mut World, PhantomData<S>);
 
 impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T> {
@@ -145,7 +146,9 @@ impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T
     }
 }
 
-/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
+/// A [`Deserialize`] type from a [`BatchSerialization`] type.
+/// 
+/// Usable only in the `scoped_deserialize_lens` function's scope.
 pub struct ScopedDeserializeLens<S: BatchSerialization>(PhantomData<S>);
 
 impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<T> {

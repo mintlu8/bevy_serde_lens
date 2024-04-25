@@ -175,23 +175,23 @@ pub trait TraitObject: 'static {
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
-/// A concrete type that implements a [`BevyTypeTagged`] trait.
+/// A concrete type that implements a [`TraitObject`] trait.
 pub trait FromTypeTagged<T: DeserializeOwned>: TraitObject {
     /// Type name, must be unique per type and 
-    /// must match the output on the corresponding [`BevyTypeTagged`]
+    /// must match the output on the corresponding [`TraitObject`]
     /// when type erased.
     fn name() -> impl AsRef<str>;
-    /// Convert to a [`BevyTypeTagged`] type.
+    /// Convert to a [`TraitObject`] type.
     fn from_type_tagged(item: T) -> Self;
 }
 
-/// A concrete type that implements a [`BevyTypeTagged`] trait.
+/// A concrete type that implements a [`TraitObject`] trait.
 pub trait IntoTypeTagged<T: TraitObject>: DeserializeOwned {
     /// Type name, must be unique per type and 
-    /// must match the output on the corresponding [`BevyTypeTagged`]
+    /// must match the output on the corresponding [`TraitObject`]
     /// when type erased.
     fn name() -> impl AsRef<str>;
-    /// Convert to a [`BevyTypeTagged`] type.
+    /// Convert to a [`TraitObject`] type.
     fn into_type_tagged(self) -> T;
 }
 
@@ -587,7 +587,7 @@ impl<T> TraitObject for Cow<'static, T> where T: TraitObject + ToOwned + ?Sized,
     }
 }
 
-/// A basic trait object that satisfies [`BevyTypeTagged`]. 
+/// A basic trait object that satisfies [`TraitObject`]. 
 /// 
 /// All [`TypePath`] and [`Serialize`] types automatically implements this.
 pub trait TaggedAny: Any + Send + Sync + 'static {
