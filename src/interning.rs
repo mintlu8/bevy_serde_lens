@@ -5,10 +5,12 @@ use std::ops::Deref;
 use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
 use serde::Deserialize;
+use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
 
 use crate::with_world;
+use crate::with_world_mut;
 
 /// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
@@ -51,5 +53,33 @@ impl<T: InterningKey> Serialize for Interned<T> {
                 )),
             }
         })?
+    }
+}
+
+
+impl<'de, T: InterningKey> Deserialize<'de> for Interned<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = <<T::Interner as Interner<T>>::Value<'de>>::deserialize(deserializer)?;
+        with_world_mut::<_, D>(|world| {
+            match world.get_resource_mut::<T::Interner>() {
+                Some(mut interner) => match interner.add(value) {
+                    Ok(value) => Ok(Interned(value)),
+                    Err(err) => Err(serde::de::Error::custom(err)),
+                },
+                None => Err(serde::de::Error::custom(
+                    format!("Interner resource {} missing.", type_name::<T::Interner>())
+                )),
+            }
+        })?
+    }
+}
+
+impl<T: InterningKey> Interned<T> {
+    pub fn serialize<S: Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
+        Interned::ref_cast(item).serialize(serializer)
+    }
+    
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
+        <Interned<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
     }
 }

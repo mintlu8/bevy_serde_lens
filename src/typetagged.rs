@@ -35,12 +35,12 @@
 //! }
 //! ```
 //!
-//! Then derive [`SerdeProject`](::bevy_serde_lens_derive::SerdeProject) on `StatEntry`:
+//! Then derive [`Serialize`] and [`Deserialize`] on `StatEntry`:
 //!
 //! ```
-//! #[derive(SerdeProject)]
+//! #[derive(Serialize, Deserialize)]
 //! struct StatEntry {
-//!     #[serde_project("TypeTagged<Box<dyn Stat>>")]
+//!     #[serde(with = "TypeTagged")]
 //!     stat: Box<dyn Stat>,
 //!     value: u32,
 //! }
@@ -73,7 +73,7 @@
 //! panic in non-self describing formats like `postcard`,
 //! as this is a limitation of the serde specification. Therefore [`TypeTagged`]
 //! will never call `deserialize_any`. Use [`AnyTagged`] to use `deserialize_any`
-//! on primitives
+//! on primitives.
 
 
 use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData, rc::Rc, sync::Arc};
@@ -91,7 +91,7 @@ scoped_tls_hkt::scoped_thread_local! {
 /// A serializable trait object.
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
-pub struct TypeTagged<T: BevyTypeTagged>(pub T);
+pub struct TypeTagged<T: TraitObject>(pub T);
 
 /// A serializable trait object that uses `deserialize_any`.
 /// 
@@ -122,7 +122,7 @@ pub struct TypeTagged<T: BevyTypeTagged>(pub T);
 /// like `postcard` and will cause an error, be careful when using this in multiple formats.
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
-pub struct AnyTagged<T: BevyTypeTagged>(pub T);
+pub struct AnyTagged<T: TraitObject>(pub T);
 
 /// A trait object like `Box<dyn T>` that is (de)serializable with world access.
 ///
@@ -163,7 +163,7 @@ pub struct AnyTagged<T: BevyTypeTagged>(pub T);
 ///     app.register_typetag::<Box<dyn<Stat>>, MyStat>   
 /// }
 /// ```
-pub trait BevyTypeTagged: 'static {
+pub trait TraitObject: 'static {
     /// Returns the type name of the implementor.
     fn name(&self) -> impl AsRef<str>;
     /// Returns the untagged inner value of the implementor.
@@ -176,7 +176,7 @@ pub trait BevyTypeTagged: 'static {
 }
 
 /// A concrete type that implements a [`BevyTypeTagged`] trait.
-pub trait FromTypeTagged<T: DeserializeOwned>: BevyTypeTagged {
+pub trait FromTypeTagged<T: DeserializeOwned>: TraitObject {
     /// Type name, must be unique per type and 
     /// must match the output on the corresponding [`BevyTypeTagged`]
     /// when type erased.
@@ -186,7 +186,7 @@ pub trait FromTypeTagged<T: DeserializeOwned>: BevyTypeTagged {
 }
 
 /// A concrete type that implements a [`BevyTypeTagged`] trait.
-pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
+pub trait IntoTypeTagged<T: TraitObject>: DeserializeOwned {
     /// Type name, must be unique per type and 
     /// must match the output on the corresponding [`BevyTypeTagged`]
     /// when type erased.
@@ -195,7 +195,7 @@ pub trait IntoTypeTagged<T: BevyTypeTagged>: DeserializeOwned {
     fn into_type_tagged(self) -> T;
 }
 
-impl<T: BevyTypeTagged, U: DeserializeOwned> IntoTypeTagged<T> for U where T: FromTypeTagged<U> {
+impl<T: TraitObject, U: DeserializeOwned> IntoTypeTagged<T> for U where T: FromTypeTagged<U> {
     fn name() -> impl AsRef<str> {
         <T as FromTypeTagged<U>>::name()
     }
@@ -222,7 +222,7 @@ pub struct TypeTagServer {
 }
 
 impl TypeTagServer {
-    pub fn get<T: BevyTypeTagged>(&self, name: &str) -> Option<DeserializeFn<T>>{
+    pub fn get<T: TraitObject>(&self, name: &str) -> Option<DeserializeFn<T>>{
         let id = TypeId::of::<T>();
         self.functions.get(&(id, Cow::Borrowed(name))).and_then(|f| f.downcast_ref()).copied()
     }
@@ -239,7 +239,7 @@ impl TypeTagServer {
         self.deserialize_bytes.clear();
     }
 
-    pub fn register<T: BevyTypeTagged, A: IntoTypeTagged<T>>(&mut self) {
+    pub fn register<T: TraitObject, A: IntoTypeTagged<T>>(&mut self) {
         let id = TypeId::of::<T>();
         let de_fn: DeserializeFn<T> = |de| {
             Ok(A::into_type_tagged(erased_serde::deserialize::<A>(de)?))
@@ -254,6 +254,19 @@ mod sealed {
 
 use sealed::Sealed;
 
+/// Function that deserializes a primitive.
+/// 
+/// # Syntax
+/// 
+/// ```
+/// # /*
+/// fn(TraitObject) -> Result<T, String>
+/// # */
+/// ```
+/// 
+/// # Supported types
+/// 
+/// `bool`, `i64`, `u64`, `f64`, `char`, `&str`, `&[u8]`
 pub trait DeserializeAnyFn<T, E>: Sealed<E> {
     fn register(self, server: &mut TypeTagServer);
 }
@@ -262,9 +275,9 @@ macro_rules! impl_de_any_fn {
     ($($in: ty, $out: ident, $name: ident);*;) => {
         $(
             type $name<T> = Box<dyn Fn($in) -> Result<T, String> + Send + Sync + 'static>;
-            impl<T: BevyTypeTagged, F> Sealed<$in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
+            impl<T: TraitObject, F> Sealed<$in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
             }
-            impl<T: BevyTypeTagged, F> DeserializeAnyFn<T, $in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
+            impl<T: TraitObject, F> DeserializeAnyFn<T, $in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
                 fn register(self, server: &mut TypeTagServer) {
                     let id = TypeId::of::<T>();
                     server.$out.insert(id, Box::new(Box::new(self) as $name<T>));
@@ -297,26 +310,26 @@ impl<T: 'static, F> DeserializeAnyFn<T, ()> for F where F: Fn() -> Result<T, Str
 
 impl TypeTagServer {
 
-    pub fn register_deserialize_any<T: BevyTypeTagged, Marker>(&mut self, f: impl DeserializeAnyFn<T, Marker>) {
+    pub fn register_deserialize_any<T: TraitObject, Marker>(&mut self, f: impl DeserializeAnyFn<T, Marker>) {
         f.register(self)
     }
 
-    pub fn get_unit<T: BevyTypeTagged>(&self) -> Option<&DeserializeUnitFn<T>>{
+    pub fn get_unit<T: TraitObject>(&self) -> Option<&DeserializeUnitFn<T>>{
         let id = TypeId::of::<T>();
         self.deserialize_unit.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn get_bool<T: BevyTypeTagged>(&self) -> Option<&DeserializeBoolFn<T>>{
+    pub fn get_bool<T: TraitObject>(&self) -> Option<&DeserializeBoolFn<T>>{
         let id = TypeId::of::<T>();
         self.deserialize_bool.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn get_int<T: BevyTypeTagged>(&self) -> Option<&DeserializeIntFn<T>>{
+    pub fn get_int<T: TraitObject>(&self) -> Option<&DeserializeIntFn<T>>{
         let id = TypeId::of::<T>();
         self.deserialize_int.get(&id).map(|f| f.downcast_ref().unwrap())
     }
 
-    pub fn get_uint<T: BevyTypeTagged>(&self) -> Option<&DeserializeUIntFn<T>>{
+    pub fn get_uint<T: TraitObject>(&self) -> Option<&DeserializeUIntFn<T>>{
         let id = TypeId::of::<T>();
         self.deserialize_uint.get(&id).map(|f| f.downcast_ref().unwrap())
     }
@@ -342,7 +355,7 @@ impl TypeTagServer {
     }
 }
 
-impl<V> serde::Serialize for TypeTagged<V> where V: BevyTypeTagged {
+impl<V> serde::Serialize for TypeTagged<V> where V: TraitObject {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let mut map = serializer.serialize_map(Some(1))?;
@@ -351,7 +364,7 @@ impl<V> serde::Serialize for TypeTagged<V> where V: BevyTypeTagged {
     }
 }
 
-impl<V> serde::Serialize for AnyTagged<V> where V: BevyTypeTagged {
+impl<V> serde::Serialize for AnyTagged<V> where V: TraitObject {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeMap;
         let mut map = serializer.serialize_map(Some(1))?;
@@ -360,21 +373,21 @@ impl<V> serde::Serialize for AnyTagged<V> where V: BevyTypeTagged {
     }
 }
 
-impl<'de, V: BevyTypeTagged> serde::Deserialize<'de> for TypeTagged<V> {
+impl<'de, V: TraitObject> serde::Deserialize<'de> for TypeTagged<V> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         deserializer.deserialize_map(TypeTaggedVisitor::<V>(PhantomData)).map(TypeTagged)
     }
 }
 
-impl<'de, V: BevyTypeTagged> serde::Deserialize<'de> for AnyTagged<V> {
+impl<'de, V: TraitObject> serde::Deserialize<'de> for AnyTagged<V> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         deserializer.deserialize_any(TypeTaggedVisitor::<V>(PhantomData)).map(AnyTagged)
     }
 }
 
-struct TypeTaggedVisitor<'de, V: BevyTypeTagged>(PhantomData<&'de V>);
+struct TypeTaggedVisitor<'de, V: TraitObject>(PhantomData<&'de V>);
 
-impl<'de, V: BevyTypeTagged> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
+impl<'de, V: TraitObject> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
     type Value = V;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -524,9 +537,9 @@ impl<'de, V: BevyTypeTagged> Visitor<'de> for TypeTaggedVisitor<'de, V>  {
     
 }
 
-struct DeserializeFnSeed<'de, T: BevyTypeTagged>(DeserializeFn<T>, PhantomData<&'de ()>);
+struct DeserializeFnSeed<'de, T: TraitObject>(DeserializeFn<T>, PhantomData<&'de ()>);
 
-impl<'de, T: BevyTypeTagged> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
+impl<'de, T: TraitObject> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
     type Value = T;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
@@ -534,7 +547,7 @@ impl<'de, T: BevyTypeTagged> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> 
     }
 }
 
-impl<T> BevyTypeTagged for Box<T> where T: BevyTypeTagged + ?Sized {
+impl<T> TraitObject for Box<T> where T: TraitObject + ?Sized {
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
@@ -544,7 +557,7 @@ impl<T> BevyTypeTagged for Box<T> where T: BevyTypeTagged + ?Sized {
     }
 }
 
-impl<T> BevyTypeTagged for Rc<T> where T: BevyTypeTagged + ?Sized {
+impl<T> TraitObject for Rc<T> where T: TraitObject + ?Sized {
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
@@ -554,7 +567,7 @@ impl<T> BevyTypeTagged for Rc<T> where T: BevyTypeTagged + ?Sized {
     }
 }
 
-impl<T> BevyTypeTagged for Arc<T> where T: BevyTypeTagged + ?Sized {
+impl<T> TraitObject for Arc<T> where T: TraitObject + ?Sized {
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
@@ -564,7 +577,7 @@ impl<T> BevyTypeTagged for Arc<T> where T: BevyTypeTagged + ?Sized {
     }
 }
 
-impl<T> BevyTypeTagged for Cow<'static, T> where T: BevyTypeTagged + ToOwned + ?Sized, T::Owned: Send + Sync + 'static {
+impl<T> TraitObject for Cow<'static, T> where T: TraitObject + ToOwned + ?Sized, T::Owned: Send + Sync + 'static {
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
@@ -592,7 +605,7 @@ impl<T> TaggedAny for T where T: Serialize + TypePath + Send + Sync + 'static {
     }
 }
 
-impl BevyTypeTagged for dyn TaggedAny {
+impl TraitObject for dyn TaggedAny {
     fn name(&self) -> impl AsRef<str> {
         TaggedAny::name(self)
     }
@@ -632,88 +645,27 @@ impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny> where T: Serialize + Deserializ
     }
 }
 
-
-/// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
-/// 
-/// `CowTypeTagged<dyn Trait>` is equivalent to `TypeTagged<Box<dyn Trait>>`.
-/// 
-/// This type is [`Serialize`] and [`Deserialize`], similar to [`TypeTagged`],
-/// but can serialize a borrowed `BevyTypeTagged` trait object.
-/// This is useful for implementing `SerdeProject`.
-#[derive(Debug)]
-pub enum CowTypeTagged<'t, T: BevyTypeTagged + ?Sized>{
-    Borrowed(&'t T),
-    Owned(Box<T>),
-}
-
-impl<T: BevyTypeTagged + ?Sized> CowTypeTagged<'_, T> {
-    pub fn into_owned(self) -> Box<T> {
-        match self {
-            CowTypeTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
-            CowTypeTagged::Owned(v) => v,
-        }
+impl<T: TraitObject> TypeTagged<T> {
+    /// Serialize with [`TypeTagged`].
+    pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
+        TypeTagged::ref_cast(item).serialize(serializer)
     }
-}
 
-impl<T: BevyTypeTagged + ?Sized> Serialize for CowTypeTagged<'_, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-        use serde::ser::SerializeMap;
-        let item = match self {
-            CowTypeTagged::Borrowed(item) => item,
-            CowTypeTagged::Owned(item) => item.as_ref(),
-        };
-
-        let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(item.name().as_ref(), item.as_serialize())?;
-        map.end()
-    }
-}
-
-impl<'de, T: BevyTypeTagged + ?Sized> Deserialize<'de> for CowTypeTagged<'_, T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-        Ok(CowTypeTagged::Owned(TypeTagged::<Box<T>>::deserialize(deserializer)?.0))
+    /// Deserialize with [`TypeTagged`].
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
+        <TypeTagged<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
     }
 }
 
 
-/// A primitive equivalent to `Cow` on a typetagged [`BevyTypeTagged`].
-/// 
-/// `CowAnyTagged<dyn Trait>` is equivalent to `AnyTagged<Box<dyn Trait>>`.
-/// 
-/// This type is [`Serialize`] and [`Deserialize`], similar to [`AnyTagged`],
-/// but can serialize a borrowed `BevyTypeTagged` trait object.
-/// This is useful for implementing `SerdeProject`.
-#[derive(Debug)]
-pub enum CowAnyTagged<'t, T: BevyTypeTagged + ?Sized>{
-    Borrowed(&'t T),
-    Owned(Box<T>),
-}
-
-impl<T: BevyTypeTagged + ?Sized> CowAnyTagged<'_, T> {
-    pub fn into_owned(self) -> Box<T> {
-        match self {
-            CowAnyTagged::Borrowed(_) => panic!("deserialize will only return an owned value."),
-            CowAnyTagged::Owned(v) => v,
-        }
+impl<T: TraitObject> AnyTagged<T> {
+    /// Serialize with [`AnyTagged`].
+    pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
+        AnyTagged::ref_cast(item).serialize(serializer)
     }
-}
 
-impl<T: BevyTypeTagged + ?Sized> Serialize for CowAnyTagged<'_, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-        use serde::ser::SerializeMap;
-        let item = match self {
-            CowAnyTagged::Borrowed(item) => item,
-            CowAnyTagged::Owned(item) => item.as_ref(),
-        };
-
-        let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(item.name().as_ref(), item.as_serialize())?;
-        map.end()
-    }
-}
-
-impl<'de, T: BevyTypeTagged + ?Sized> Deserialize<'de> for CowAnyTagged<'_, T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-        Ok(CowAnyTagged::Owned(AnyTagged::<Box<T>>::deserialize(deserializer)?.0))
+    /// Deserialize with [`AnyTagged`].
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
+        <AnyTagged<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
     }
 }

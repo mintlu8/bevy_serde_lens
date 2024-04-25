@@ -1,5 +1,5 @@
 #[allow(unused)]
-use crate::{Component, BevyObject, Maybe, TypePath};
+use crate::{Component, BevyObject, Maybe, TypePath, SerializeWorld};
 #[allow(unused)]
 use bevy_ecs::query::QueryFilter;
 /// Bind a [`BevyObject`] to a [`QueryFilter`].
@@ -58,20 +58,6 @@ macro_rules! bind_object {
         );
     };
 
-    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty ) => {
-        #[allow(unused)]
-        const _: () = {
-            impl $crate::BevyObject for $main {
-                type Filter = $filter;
-                type Object = $main;
-
-                fn name() -> &'static str {
-                    $name
-                }
-            }
-        };
-    };
-
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
         $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
     }) => {
@@ -106,7 +92,7 @@ macro_rules! bind_object {
     }
 }
 
-/// Batches multiple [`BindBevyObject`] types to be serialized together as a map.
+/// Batches multiple [`SerializeWorld`] types to be serialized together as a map.
 ///
 /// This macro generates a `type` that can be used on `World::save` and `World::load`.
 ///

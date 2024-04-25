@@ -84,12 +84,26 @@ impl<'de, T: Asset + Deserialize<'de>> Deserialize<'de> for UniqueHandle<T> {
     }
 }
 
-/// to be used `#[serde(with = path_handle)]`
-pub mod path_handle {
+impl<T: Asset> PathHandle<T> {
+    /// Serialize with [`PathHandle`].
+    pub fn serialize<S: serde::Serializer>(item: &Handle<T>, serializer: S) -> Result<S::Ok, S::Error> {
+        PathHandle::ref_cast(item).serialize(serializer)
+    }
 
+    /// Deserialize with [`PathHandle`].
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Handle<T>, D::Error> {
+        <PathHandle<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
+    }
 }
 
-/// to be used `#[serde(with = path_handle)]`
-pub mod unique_handle {
+impl<T: Asset> UniqueHandle<T> {
+    /// Serialize with [`UniqueHandle`].
+    pub fn serialize<S: serde::Serializer>(item: &Handle<T>, serializer: S) -> Result<S::Ok, S::Error> {
+        PathHandle::ref_cast(item).serialize(serializer)
+    }
 
+    /// Deserialize with [`UniqueHandle`].
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Handle<T>, D::Error> {
+        <PathHandle<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
+    }
 }

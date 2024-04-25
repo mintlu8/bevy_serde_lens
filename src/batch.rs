@@ -1,47 +1,8 @@
-
-use std::borrow::Cow;
-
-use serde::de::Visitor;
-
-use serde::Deserializer;
-
-use serde::Deserialize;
-
-use crate::extractors::SerializeNonSend;
-
+use std::{borrow::Cow, cell::RefCell, marker::PhantomData};
+use bevy_ecs::{entity::Entity, system::Resource, world::World};
 use bevy_reflect::TypePath;
-
-use bevy_ecs::system::Resource;
-
-use crate::extractors::SerializeResource;
-
-use crate::ENTITY;
-
-use crate::WORLD;
-
-use bevy_ecs::entity::Entity;
-
-use crate::extractors::Root;
-
-use crate::BevyObject;
-
-use serde::Serialize;
-
-use std::marker::PhantomData;
-
-use std::cell::RefCell;
-
-use serde::de::MapAccess;
-
-use serde::ser::SerializeMap;
-
-use serde::Serializer;
-
-use bevy_ecs::world::World;
-
-use crate::ZstInit;
-
-use serde::de::DeserializeOwned;
+use serde::{de::{DeserializeOwned, MapAccess, Visitor}, ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
+use crate::{BevyObject, Root, SerializeNonSend, SerializeResource, ZstInit, ENTITY, WORLD};
 
 /// A batch serialization type.
 pub trait BatchSerialization {
@@ -53,6 +14,7 @@ pub trait BatchSerialization {
     fn deserialize_map<'de, M>(name: &str, map: &mut M) -> Result<(), M::Error> where M: MapAccess<'de>;
 }
 
+/// A Single item in [`BatchSerialization`].
 pub trait SerializeWorld {
     type De: DeserializeOwned + ZstInit;
     fn name() -> &'static str;

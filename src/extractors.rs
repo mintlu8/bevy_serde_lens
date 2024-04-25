@@ -126,6 +126,7 @@ impl<'de, T: FromWorld> Deserialize<'de> for DefaultInit<T> {
     }
 }
 
+/// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
 pub struct Root<T>(PhantomData<T>);
 
 impl<T> ZstInit for Root<T> {
@@ -163,6 +164,7 @@ impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
     }
 }
 
+/// Serialize a component on the active entity.
 pub struct SerializeComponent<T>(PhantomData<T>);
 
 impl<T> ZstInit for SerializeComponent<T> {
@@ -210,6 +212,7 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
     }
 }
 
+/// Serialize a resource on the active world.
 pub struct SerializeResource<T>(PhantomData<T>);
 
 impl<T> ZstInit for SerializeResource<T> {
@@ -239,6 +242,7 @@ impl<'de, T: Resource + Deserialize<'de>> Deserialize<'de> for SerializeResource
     }
 }
 
+/// Serialize a non-send resource on the active world.
 pub struct SerializeNonSend<T>(PhantomData<T>);
 
 impl<T> ZstInit for SerializeNonSend<T> {
@@ -315,14 +319,15 @@ impl<T: BevyObject> Serialize for Child<T> {
 
 impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-        world_entity_scope_mut::<_, D>(|world, entity| {
-            let new_child = world.spawn_empty().id();
-            ENTITY.set(&new_child, || {
-                <T::Object>::deserialize(deserializer)
-            })?;
-            world.entity_mut(entity).add_child(new_child);
-            Ok(Child(PhantomData))
-        })?
+        let new_child = world_entity_scope_mut::<_, D>(|world, entity| {
+            let child = world.spawn_empty().id();
+            world.entity_mut(entity).add_child(child);
+            child
+        })?;
+        ENTITY.set(&new_child, || {
+            <T::Object>::deserialize(deserializer)
+        })?;
+        Ok(Child(PhantomData))
     }
 }
 

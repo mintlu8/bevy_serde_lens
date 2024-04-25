@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::marker::PhantomData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::DeserializeSeed;
-use crate::typetagged::{BevyTypeTagged, DeserializeAnyFn, IntoTypeTagged, TypeTagServer, TYPETAG_SERVER};
+use crate::typetagged::{TraitObject, DeserializeAnyFn, IntoTypeTagged, TypeTagServer, TYPETAG_SERVER};
 use crate::{BatchSerialization, WORLD_MUT};
 
 #[allow(unused)]
@@ -32,11 +32,11 @@ pub trait WorldExtension {
     fn deserialize_lens<S: BatchSerialization>(&mut self) -> DeserializeLens<S>;
     /// Create a [`Deserialize`] type from a [`World`] and a [`SaveLoad`] type, 
     /// while pushing `&mut World` as a thread local in scope.
-    fn scoped_deserialize_lens<S: BatchSerialization, T>(&mut self, f: impl FnOnce(ScopedDeserializeLens<S>) -> T) -> T;
+    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T;
     /// Despawn all entities in a [`BindBevyObject`] type or a group created by [`batch!`] recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);
     /// Register a type that can be deserialized dynamically.
-    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
+    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self);
     /// Register a type that can be deserialized dynamically from a primitive.
     /// 
     /// Accepts a `Fn(T) -> Result<Out, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
@@ -46,7 +46,7 @@ pub trait WorldExtension {
     /// // deserialize number as the default attacking type
     /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
     /// ```
-    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
+    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
 }
 
 impl WorldExtension for World {
@@ -71,20 +71,20 @@ impl WorldExtension for World {
         DeserializeLens(self, PhantomData)
     }
 
-    fn scoped_deserialize_lens<S: BatchSerialization, T>(&mut self, f: impl FnOnce(ScopedDeserializeLens<S>) -> T) -> T {
-        WORLD_MUT.set(self, ||f(ScopedDeserializeLens(PhantomData)))
+    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T {
+        WORLD_MUT.set(self, f)
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self){
         T::despawn(self)
     }
 
-    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
+    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self){
         let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
         server.register::<A, B>()
     }
 
-    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
         let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
         server.register_deserialize_any::<T, O>(f)
     }
@@ -107,7 +107,7 @@ impl WorldExtension for App {
         self.world.deserialize_lens()
     }
 
-    fn scoped_deserialize_lens<S: BatchSerialization, T>(&mut self, f: impl FnOnce(ScopedDeserializeLens<S>) -> T) -> T {
+    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T {
         self.world.scoped_deserialize_lens(f)
     }
 
@@ -115,11 +115,11 @@ impl WorldExtension for App {
         self.world.despawn_bound_objects::<T>()
     }
 
-    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
+    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self){
         self.world.register_typetag::<A, B>()
     }
 
-    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
         self.world.register_deserialize_any::<T, O>(f)
     }
 }
@@ -146,9 +146,9 @@ impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T
 }
 
 /// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
-pub struct ScopedDeserializeLens<'t, S: BatchSerialization>(PhantomData<&'t S>);
+pub struct ScopedDeserializeLens<S: BatchSerialization>(PhantomData<S>);
 
-impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<'de, T> {
+impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
         T::De::deserialize(deserializer)?;
         Ok(Self(PhantomData))

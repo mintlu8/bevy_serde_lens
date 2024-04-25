@@ -1,7 +1,7 @@
 #![allow(clippy::upper_case_acronyms)]
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{batch, bind_object, SerializeResource, WorldExtension};
+use bevy_serde_lens::{batch, bind_object, ScopedDeserializeLens, SerializeResource, WorldExtension};
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 
@@ -131,7 +131,9 @@ pub fn test() {
 
     world.insert_resource(R(12));
 
-    let value = world.save::<ABCDR, _>(serde_json::value::Serializer).unwrap();
+    let lens = world.serialize_lens::<ABCDR>();
+
+    let value = serde_json::to_value(lens).unwrap();
 
     assert_eq!(value, json!({
         "A": ["b", "e", "v", "y"],
@@ -147,7 +149,17 @@ pub fn test() {
 
     assert!(!world.contains_resource::<R>());
 
-    world.load::<ABCDR, _>(value).unwrap();
+    world.load::<ABCDR, _>(value.clone()).unwrap();
+
+    assert_eq!(world.entities().len(), 10);
+
+    assert!(world.contains_resource::<R>());
+
+    world.despawn_bound_objects::<ABCDR>();
+    
+    world.scoped_deserialize_lens(|| {
+        let _: ScopedDeserializeLens<ABCDR> = serde_json::from_value(value).unwrap();
+    });
 
     assert_eq!(world.entities().len(), 10);
 

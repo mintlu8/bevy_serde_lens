@@ -13,8 +13,7 @@ mod macros;
 pub mod interning;
 pub mod asset;
 pub mod typetagged;
-// pub mod typetagged;
-// pub mod entity;
+pub mod entity;
 mod filter;
 
 pub use filter::EntityFilter;
@@ -47,7 +46,7 @@ scoped_tls_hkt::scoped_thread_local!(
 
 /// Run a function on a read only reference to [`World`].
 /// 
-/// Can only be used in [`Serialize`](serde::Serialize) implementations.
+/// Can only be used in [`Serialize`] implementations.
 pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
     if !WORLD.is_set() {
         Err(serde::ser::Error::custom("Cannot serialize outside the `save` scope"))

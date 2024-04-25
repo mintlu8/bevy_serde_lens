@@ -1,21 +1,19 @@
 #![allow(clippy::approx_constant)]
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{bind_object, SerdeProject, WorldExtension};
-use bevy_serde_lens::typetagged::{TaggedAny, AnyTagged};
+use bevy_serde_lens::WorldExtension;
+use bevy_serde_lens::typetagged::TaggedAny;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-
+use bevy_serde_lens::typetagged::AnyTagged;
 pub type Any = Box<dyn TaggedAny>;
 
-#[derive(Component, SerdeProject)]
+#[derive(Component, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
 pub struct AnyComponent {
-    #[serde_project("AnyTagged<Any>")]
+    #[serde(with = "AnyTagged")]
     any: Any
 }
-
-bind_object!(AnyComponent as "Any");
 
 fn any(v: impl TaggedAny) -> AnyComponent {
     AnyComponent { any : Box::new(v) }
