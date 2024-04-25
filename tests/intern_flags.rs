@@ -1,9 +1,10 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::Infallible};
 
 use bevy_ecs::{component::Component, system::Resource, world::World};
-use bevy_serde_project::{bind_object, interning::{Interner, InterningKey}, Error, SerdeProject, WorldExtension};
+use bevy_reflect::TypePath;
+use bevy_serde_lens::{interning::{Interned, Interner, InterningKey}, WorldExtension};
 use rustc_hash::FxHashMap;
-use bevy_serde_project::interning::Interned;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 pub struct Flag(u64);
 
@@ -24,10 +25,11 @@ impl InterningKey for Flag {
 }
 
 impl Interner<Flag> for FlagsServer {
+    type Error = Infallible;
     type ValueRef<'t> = String;
     type Value<'de> = Cow<'de, str>;
 
-    fn get(&self, key: &Flag) -> Result<String, Box<Error>> {
+    fn get(&self, key: &Flag) -> Result<String, Self::Error> {
         let mut n = 1;
         let mut vec = Vec::new();
         let mut key = key.0;
@@ -41,7 +43,7 @@ impl Interner<Flag> for FlagsServer {
         Ok(vec.join("|"))
     }
 
-    fn add(&mut self, value: Self::Value<'_>) -> Result<Flag, Box<Error>> {
+    fn add(&mut self, value: Self::Value<'_>) -> Result<Flag, Self::Error> {
         Ok(Flag(value.split('|').map(|s| 
             self.s2i.get(s).copied().unwrap_or_else(|| {
                 let val = 1 << (self.i2s.len() - 1);
@@ -53,14 +55,12 @@ impl Interner<Flag> for FlagsServer {
     }
 }
 
-#[derive(Component, SerdeProject)]
+#[derive(Component, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
 pub struct FlagComponent {
-    #[serde_project("Interned<Flag>")]
+    #[serde(with = "Interned")]
     pub flag: Flag,
 }
-
-bind_object!(FlagComponent as "Flag");
 
 #[test]
 pub fn test() {

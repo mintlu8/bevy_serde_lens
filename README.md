@@ -1,7 +1,7 @@
-# bevy_serde_project
+# bevy_serde_lens
 
-[![Crates.io](https://img.shields.io/crates/v/bevy_serde_project.svg)](https://crates.io/crates/bevy_serde_project)
-[![Docs](https://docs.rs/bevy_serde_project/badge.svg)](https://docs.rs/bevy_serde_project/latest/bevy_serde_project/)
+[![Crates.io](https://img.shields.io/crates/v/bevy_serde_lens.svg)](https://crates.io/crates/bevy_serde_lens)
+[![Docs](https://docs.rs/bevy_serde_lens/badge.svg)](https://docs.rs/bevy_serde_lens/latest/bevy_serde_lens/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
 Stateful, structural and human-readable serialization crate for the bevy engine.
@@ -10,31 +10,30 @@ Stateful, structural and human-readable serialization crate for the bevy engine.
 
 * Stateful serialization and deserialization with world access.
 * Treat an `Entity`, its `Component`s and children as a single serde object.
-* Serialize `Handle`s and provide a generalized data interning interface.
-* Serialize stored `Entity`s like smart pointers.
 * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
 * Extremely lightweight and modular. No systems, no plugins.
-* Supports almost every serde format<sup>*</sup>
-
-<sub>* Ergonomics may vary depend on `Serializer`, `Deserializer` and `DeserializeSeed` trait support</sub>
+* Supports every serde format using familiar syntax.
+* Serialize `Handle`s and provide a generalized data interning interface.
+* Serialize stored `Entity`s like smart pointers.
 
 ## Getting Started
 
-Serialize an `Entity` Character with some components and children,
-assuming all components are `Serialize` and `DeserializeOwned`:
+Imagine we want to Serialize an `Entity` Character with some components and children.
 
 ```rust
-bind_object!(Character as "Character" {
-    #[serde(flatten)]
+bind_object!(pub struct SerializeCharacter as (With<Character>, Without<NPC>) {
     character: Character,
     position: Position,
-    #[serde(default, skip_serializing_if="Option::is_none")]
+    #[serde(default)]
     weapon: Maybe<Weapon>,
+    #[serde(default)]
     shield: Maybe<Shield>,
-    #[serde(default, skip_serializing_if="Vec::is_empty")]
+    #[serde(default)]
     potions: ChildVec<Potion>,
 })
 ```
+
+This creates a `BevyObject` that marks entities that satisfies a specific `QueryFilter` as serializable.
 
 Then call `save` on `World`, where `serializer` is something like `serde_json::Serializer`.
 
@@ -43,8 +42,25 @@ Then call `save` on `World`, where `serializer` is something like `serde_json::S
 world.save::<Character>(serializer)
 // Load
 world.load::<Character>(deserializer)
-// Delete
-world.despawn_bound_objects::<Character>()
+```
+
+If you prefer more familiar syntax like
+
+```rust
+serde_json::to_string(..)
+```
+
+You can create a `SerializeLens`:
+
+```rust
+// `SerializeLens` has a reference to `World` and implements `Serialize`
+let lens = world.serialize_lens::<Character>();
+serde_json::to_string(&lens);
+// This signature works because the world is stored as a thread local
+world.scoped_deserialize_lens(|| {
+    // Return type doesn't matter, data is stored in the world
+    let _: ScopedDeserializeLens<Character> = serde_json::from_str(&my_string);
+})
 ```
 
 This saves a list of Characters as an array:
@@ -62,11 +78,11 @@ To save multiple types of objects in a batch, create a batch serialization type 
 ```rust
 type SaveFile = batch!(
     Character, Monster, Terrain,
-    // Use `BindResource` to serialize a resource.
-    BindResource<MyResource>,
+    // Use `SerializeResource` to serialize a resource.
+    SerializeResource<MyResource>,
 );
 world.save::<SaveFile>(serializer)
-world.load::<SaveFile>(serializer)
+world.load::<SaveFile>(deserializer)
 world.despawn_bound_objects::<SaveFile>()
 ```
 
@@ -85,93 +101,29 @@ This saves each type in a map entry:
 }
 ```
 
-## FAQ
+## Projection Types
 
-* What if my types aren't `Serialize` and `DeserializeOwned`?
+The crate provides various projection types for certain common use cases.
 
-We can derive or implement `SerdeProject` to convert them into `serde` types.
-
-* I don't own the type
-
-Use `Convert` and the `SerdeProject` macro to cast the type to an owned newtype.
-
-* I have an ID and I want to serialize its content
-
-`SerdeProject` allows you to fetch a resource from the world during serialization.
-
-* I have a `Box<dyn T>`
-
-If you are on a non-wasm platform you can try the `typetag` crate. If not,
-or if you want more control, checkout the `typetagged` module in this crate.
-
-## The traits and what they do
-
-* `Serialize` and `DeserializeOwned`
-
-Any `Serialize` and `DeserializeOwned` type is automatically `SerdeProject` and
-any such `Component` is automatically a `BevyObject`.
-
-This comes with the downside that we cannot implement `SerdeProject` on any foreign
-type due to the orphan rule.
-This is where `Convert` and the `SerdeProject`
-macro comes in handy.
-
-* `SerdeProject`
-
-`SerdeProject` projects non-serde types into serde types with world access.
-
-The `SerdeProject` macro implements
-`SerdeProject` on type where all fields either implements `SerdeProject` or converts
-to a `SerdeProject` newtype via the `Convert` trait.
-
-### Example
-
-Serialize a `Handle` as its path, stored in `AssetServer`.
+For example, to serialize an `Handle` as its string path,
+you can use `#[serde(with = "PathHandle")]` like so
 
 ```rust
-#[derive(SerdeProject)]
+#[derive(Serialize, Deserialize)]
 struct MySprite {
-    // implements serde, therefore is `SerdeProject`.
-    pub name: String,
-    // Calls `Convert` and `PathHandle<Image>` is `SerdeProject`.
-    #[serde_project("PathHandle<Image>")]
-    pub handle: Handle<Image>
+    #[serde(with = "PathHandle")]
+    image: Handle<Image>
 }
 ```
 
-* `Convert`
+Or use the newtype directly.
 
-Convert allows you to `RefCast` a non-serializable type
-to a newtype that implements `SerdeProject`.
-
-For example `PathHandle<Handle<T>>` serializes `Handle` as a `String`, while
-`UniqueHandle<Handle<T>>` serializes `Handle` as a `T`.
-This zero-cost conversion can be done via the `ref_cast` crate.
-
-* `BevyObject`
-
-A `BevyObject` allows an `Entity` to be serialized. This can either be just a component,
-or a combination of components, children, components on children, etc.
-
-All `SerdeProject` components are `BevyObject`s.
-
-* `BindBevyObject`
-
-`BindBevyObject` is a `QueryFilter`, usually a key component,
-that determines the entry point for serialization and deserialization.
-
-Any entity that has the `QueryFilter` but does not satisfy the layout of the bound `BevyObject`
-will result in an error.
-
-use the `bind_object!` macro to create a serialization entry.
-
-* `Named`
-
-Provides a serialization name for resources.
-
-* `SaveLoad`
-
-Represents a batch serialization type, or contents of a single save file.
+```rust
+#[derive(Serialize, Deserialize)]
+struct MySprite {
+    image: PathHandle<Image>
+}
+```
 
 ## TypeTag
 
@@ -179,7 +131,7 @@ The `typetag` crate allows you to serialize trait objects like `Box<dyn T>`,
 but using `typetag` will always
 pull in all implementations linked to your build and does not work on WASM.
 To address these limitations this crate allows you to register deserializers manually
-in the bevy `World` and use the `TypeTagged` newtype for serialization.
+in the bevy `World` and use the `TypeTagged` projection type for serialization.
 
 ```rust
 world.register_typetag::<Box<dyn Animal>, Cat>()
@@ -188,9 +140,9 @@ world.register_typetag::<Box<dyn Animal>, Cat>()
 then
 
 ```rust
-#[derive(SerdeProject)]
+#[derive(Serialize, Deserialize)]
 struct MyComponent {
-    #[serde_project("TypeTagged<Box<dyn Weapon>>")]
+    #[serde(with = "TypeTagged")]
     weapon: Box<dyn Weapon>
 }
 ```
@@ -211,7 +163,7 @@ world.register_deserialize_any(|s: &str|
 
 ## Versions
 
-| bevy | bevy-serde-project |
+| bevy | bevy-serde-lens    |
 |------|--------------------|
 | 0.13 | latest             |
 

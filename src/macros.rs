@@ -1,38 +1,15 @@
 #[allow(unused)]
-use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
-
-/// Bind a [`BevyObject`] to a [`Component`].
-///
-/// The type is unnameable but can be accessed via [`BindBevyObject::BevyObject`]
-/// or the [`Object`] extractor.
+use crate::{Component, BevyObject, Maybe, TypePath, SerializeWorld};
+#[allow(unused)]
+use bevy_ecs::query::QueryFilter;
+/// Bind a [`BevyObject`] to a [`QueryFilter`].
 ///
 /// # Syntax
-/// 
-/// * Bind a component to itself:
 ///
 /// ```
-/// // This is required for serializing `Weapon` directly.
-/// bind_object!(Weapon as "weapon");
-/// ```
-/// 
-/// * Bind a component to a `QueryFilter`:
-///
-/// ```
-/// // With<ActiveWeapon> must be provided to roundtrip.
-/// bind_object!(ActiveWeapon = (With<Weapon>, With<ActiveWeapon>) as "weapon");
-/// ```
-/// 
-/// To create this type instead: 
-/// 
-/// ```
-/// bind_object!(pub struct WeaponSerialize = (With<Weapon>, With<ActiveWeapon>) as "weapon");
-/// ```
-/// 
-/// * Bind a complex object to a component:
-///
-/// ```
-/// // `as "Name"` sets the serialized type name.
-/// bind_object!(Weapon as "weapon" {
+/// // Bind a `QueryFilter` to a `BevyObject`
+/// // The generated object must satisfy the `QueryFilter` to roundtrip properly.
+/// bind_object!(SerializeWeapon as (With<Weapon>, Without<Unusable>) {
 ///     // `serde` attributes are allowed.
 ///     #[serde(flatten)]
 ///     // Serialize the main component, this is required.
@@ -54,7 +31,6 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 /// });
 /// ```
 ///
-///
 /// # Note
 ///
 /// You can specify serde attributes on fields.
@@ -65,120 +41,58 @@ use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
 ///
 /// For example 
 /// ```
-/// #[serde(default, skip_serializing_if = "Option::None")]
+/// #[serde(default)]
 /// ```
-/// can be used to skip a [`Maybe`] field if None, but this will
-/// break non-self-describing formats.
+/// can be used to skip a [`Maybe`] field if None. 
+/// Keep in mind this will break non-self-describing formats.
+/// 
+/// # Rename
+/// 
+/// The type derives [`TypePath`] and uses `short_type_path` as its name,
+/// use `type_path` attributes to rename the type if desired.
 #[macro_export]
 macro_rules! bind_object {
-    ($(#[$($head_attr: tt)*])* $vis: vis struct $name: ident $($tt: tt)*) => {
-        #[derive(Debug, Clone, Copy, Default)]
-        $vis struct $name;
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
         $crate::bind_object!(
-            $(#[$($head_attr)*])* $name $($tt)*
+            $(#[$($head_attr)*])* $vis struct $main as $crate::With<$filter> {$($tt)*}
         );
     };
 
-    ($(#[$($head_attr: tt)*])* $main: ty as $name: literal) => {
-        $crate::bind_object!(
-            $(#[$($head_attr)*])* $main = $crate::With<$main> as $name
-        );
-    };
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
+        $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
+    }) => {
 
-    ($(#[$($head_attr: tt)*])* $main: ty = $filter: ty as $name: literal) => {
+        #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
+        pub struct $main {
+            $(
+                $(#[$($attr)*])*
+                $field: <$ty as $crate::BindProject>::To,
+            )*
+        }
+
         #[allow(unused)]
         const _: () = {
-            impl $crate::BindBevyObject for $main {
+            impl $crate::BevyObject for $main {
                 type Filter = $filter;
-                type BevyObject = $main;
+                type Object = $main;
 
                 fn name() -> &'static str {
-                    $name
-                }
-            }
-        };
-    };
-
-    ($(#[$($head_attr: tt)*])* $main: ty as $name: literal {
-        $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
-    }) => {
-        $crate::bind_object!(
-            $(#[$($head_attr)*])* $main = $crate::With<$main> as $name {
-                $($(#[$($attr)*])* $field => $ty),*
-            }
-        );
-    };
-
-    ($(#[$($head_attr: tt)*])* $main: ty = $filter: ty as $name: literal {
-        $($(#[$($attr: tt)*])* $field: ident => $ty: ty),* $(,)?
-    }) => {
-        #[allow(unused)]
-        const _: () = {
-            impl $crate::BindBevyObject for $main {
-                type Filter = $filter;
-                type BevyObject = __BoundObject;
-
-                fn name() -> &'static str {
-                    $name
+                    Self::short_type_path()
                 }
             }
 
-            pub struct __BoundObject;
-
-            #[derive($crate::serde::Serialize)]
-            #[serde(rename = $name)]
-            $(#[$($head_attr)*])*
-            pub struct __Ser<'t> {
-                $(
-                    $(#[$($attr)*])*
-                    $field: <$ty as $crate::BevyObject>::Ser<'t>,
-                )*
-                #[serde(skip)]
-                __phantom: ::std::marker::PhantomData<&'t ()>
-            }
-
-            #[derive($crate::serde::Deserialize)]
-            #[serde(rename = $name, bound = "'t: 'de, 'de: 't")]
-            $(#[$($head_attr)*])*
-            pub struct __De<'t> {
-                $(
-                    $(#[$($attr)*])*
-                    $field: <$ty as $crate::BevyObject>::De<'t>,
-                )*
-                #[serde(skip)]
-                __phantom: ::std::marker::PhantomData<&'t ()>
-            }
-    
-            impl $crate::BevyObject for __BoundObject {
-                type Ser<'t> = __Ser<'t>;
-                type De<'de> = __De<'de>;
-                fn to_ser(world: & $crate::World, entity: $crate::Entity) -> Result<Option<Self::Ser<'_>>, Box<$crate::Error>> {
-                    // Returns `None` if primary component not found, error otherwise.
-                    if world.get_entity(entity)
-                        .map(|e| <<$main as $crate::BindBevyObject>::Filter as $crate::EntityFilter>::filter(e)) != Some(true) {
-                        return Ok(None);
+            impl $crate::ZstInit for $main {
+                fn init() -> Self {
+                    Self {
+                        $($field: $crate::ZstInit::init(),)*
                     }
-                    Ok(Some(__Ser {
-                        $($field: <$ty as $crate::BevyObject>::to_ser(world, entity)?
-                            .ok_or_else(||$crate::Error::FieldMissing {
-                                field: stringify!($field),
-                                ty: <$main as $crate::BindBevyObject>::name()
-                            }.boxed())?,
-                        )*
-                        __phantom: ::std::marker::PhantomData,
-                    }))
                 }
-    
-                fn from_de(world: &mut $crate::World, parent: $crate::Entity, de: Self::De<'_>) -> Result<(), Box<$crate::Error>> {
-                    $(<$ty as $crate::BevyObject>::from_de(world, parent, de.$field)?;)*
-                    Ok(())
-                }
-            };
+            }
         };
     }
 }
 
-/// Batches multiple [`BindBevyObject`] types to be serialized together as a map.
+/// Batches multiple [`SerializeWorld`] types to be serialized together as a map.
 ///
 /// This macro generates a `type` that can be used on `World::save` and `World::load`.
 ///
@@ -189,13 +103,29 @@ macro_rules! bind_object {
 /// ```
 #[macro_export]
 macro_rules! batch {
-    ($ty: ty) => {
+    ($vis: vis type $ty: ident = ($($tt:tt)*)) => {
+        mod paste::paste![<__sealed_ $ty>]{
+            use $crate::Root;
+            use $crate::SerializeResource as Res;
+            $vis type $ty = $crate::batch_inner!($($tt)*);
+        }
+        $vis type $ty = __sealed::$ty;
+    };
+    ($($tt:tt)*) => {
+        $crate::batch_inner!($($tt)*)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! batch_inner {
+    ($ty: ty $(,)?) => {
         $ty
     };
     ($a: ty, $b: ty $(,)?) => {
         $crate::Join<$a, $b>
     };
     ($first: ty $(,$ty: ty)* $(,)?) => {
-        $crate::Join<$first, $crate::batch!($($ty),*)>
+        $crate::Join<$first, $crate::batch_inner!($($ty),*)>
     };
 }

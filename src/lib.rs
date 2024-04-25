@@ -1,26 +1,21 @@
 #![doc = include_str!("../README.md")]
-
-use std::any::type_name;
-use std::fmt::Display;
-
-use bevy_ecs::{component::Component, system::Resource, world::{EntityRef, EntityWorldMut}};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-mod from_world;
-pub use from_world::{NoContext, WorldAccess, FromWorldAccess, from_world, from_world_mut};
+use bevy_ecs::{component::Component, world::EntityWorldMut};
+use bevy_ecs::world::EntityRef;
+use serde::{Deserializer, Serializer};
+use serde::{de::DeserializeOwned, Serialize};
 mod extractors;
-pub use extractors::{Null, Object, DefaultInit, Maybe, Child, ChildUnchecked, ChildVec, ChildMap};
+pub use extractors::*;
 mod save_load;
-pub use save_load::{WorldExtension, Join, SaveLoad, BindResource};
+mod batch;
+pub use batch::{Join, BatchSerialization, SerializeWorld};
+pub use save_load::{WorldExtension, SerializeLens, DeserializeLens, ScopedDeserializeLens};
 mod macros;
-pub mod typetagged;
-pub mod asset;
 pub mod interning;
+pub mod asset;
+pub mod typetagged;
 pub mod entity;
-mod projections;
 mod filter;
 
-pub use projections::{ProjectOption, ProjectMap, ProjectVec, Map};
-pub use bevy_serde_project_derive::SerdeProject;
 pub use filter::EntityFilter;
 
 #[allow(unused)]
@@ -30,221 +25,136 @@ use bevy_hierarchy::Children;
 
 #[doc(hidden)]
 pub use bevy_ecs::{world::World, entity::Entity, query::With};
-use bevy_ecs::world::Mut;
 #[doc(hidden)]
 pub use serde;
+#[doc(hidden)]
+pub use paste::paste;
+#[doc(hidden)]
+pub use bevy_reflect::TypePath;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("More than one children of {parent:?} found with extractor Child<{ty}>.")]
-    MoreThenOne{
-        parent: Entity,
-        ty: &'static str,
-    },
-    #[error("Entity {0:?} missing.")]
-    EntityMissing(Entity),
-    #[error("Component {ty} not found for Entity {entity:?}.")]
-    ComponentNotFound{
-        entity: Entity,
-        ty: &'static str,
-    },
-    #[error("ChildMap<{key}, {value}> found key with missing value.")]
-    KeyNoValue{
-        key: &'static str,
-        value: &'static str,
-    },
-    #[error("Resource {ty} not found.")]
-    ResourceNotFound{
-        ty: &'static str,
-    },
-    #[error("Field {field} missing in BevyObject {ty}.")]
-    FieldMissing{
-        field: &'static str,
-        ty: &'static str,
-    },
-    #[error("Unregistered type {name} of trait object {ty}.")]
-    UnregisteredTraitObjectType {
-        ty: &'static str,
-        name: String,
-    },
-    #[error("Serialization Error: {0}")]
-    SerializationError(String),
-    #[error("Serialization Error: {0}")]
-    DeserializationError(String),
-    #[error("Cannot serialize a skipped enum variant \"{0}\".")]
-    SkippedVariant(&'static str),
-    #[error("{0}")]
-    CustomError(String),
-    #[error("Handle<{ty}> does not have an associated path.")]
-    PathlessHandle{
-        ty: &'static str
-    },
-    #[error("Associated Asset of Handle<{ty}> missing.")]
-    AssetMissing{
-        ty: &'static str
-    },
-    #[error("'__Phantom' branch deserialized, this is impossible.")]
-    PhantomBranch,
-    #[error("Trying to serialize/deserialize a enum with no valid variants.")]
-    NoValidVariants,
+scoped_tls_hkt::scoped_thread_local!( 
+    static ENTITY: Entity
+);
+
+scoped_tls_hkt::scoped_thread_local!( 
+    static WORLD: World
+);
+
+scoped_tls_hkt::scoped_thread_local!( 
+    static mut WORLD_MUT: World
+);
+
+/// Run a function on a read only reference to [`World`].
+/// 
+/// Can only be used in [`Serialize`] implementations.
+pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
+    if !WORLD.is_set() {
+        Err(serde::ser::Error::custom("Cannot serialize outside the `save` scope"))
+    } else {
+        Ok(WORLD.with(f))
+    }
+    
 }
 
-impl Error {
-    pub fn boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
-
-    pub fn custom(err: impl Display) -> Box<Self> {
-        Box::new(Self::CustomError(err.to_string()))
+/// Run a function on a mutable only reference to [`World`].
+/// 
+/// Can only be used in [`Deserialize`](serde::Deserialize) implementations.
+/// 
+/// # Panics
+/// 
+/// If used in a nested manner, as that is a violation to rust's aliasing rule.
+/// 
+/// ```
+/// with_world_mut(|| {
+///     // panics here
+///     with_world_mut(|| {
+///         ..
+///     })
+/// })
+/// ```
+pub fn with_world_mut<'de, T, S: Deserializer<'de>>(f: impl FnOnce(&mut World) -> T) -> Result<T, S::Error> {
+    if !WORLD_MUT.is_set() {
+        Err(serde::de::Error::custom("Cannot deserialize outside the `load` scope"))
+    } else {
+        Ok(WORLD_MUT.with(f))
     }
 }
 
-type BoxError = Box<Error>;
 
-/// A type serializable and deserializable with [`World`] access.
-pub trait SerdeProject: Sized {
-    /// Context fetched from the [`World`].
-    type Ctx: FromWorldAccess;
-
-    /// A [`Serialize`] type.
-    type Ser<'t>: Serialize + 't where Self: 't;
-    /// A [`Deserialize`] type.
-    type De<'de>: Deserialize<'de>;
-
-    /// Convert to a [`Serialize`] type.
-    fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<Error>>;
-    /// Convert from a [`Deserialize`] type.
-    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>>;
+fn world_entity_scope<T, S: Serializer>(f: impl FnOnce(&World, Entity) -> T) -> Result<T, S::Error>{
+    if !WORLD.is_set() {
+        return Err(serde::ser::Error::custom("Cannot serialize outside the `save` scope"))
+    }
+    if !ENTITY.is_set() {
+        return Err(serde::ser::Error::custom("No active entity found"))
+    }
+    Ok(WORLD.with(|w| {
+        ENTITY.with(|e| f(w, *e))
+    }))
 }
 
-/// Alias for [`SerdeProject::Ser`].
-pub type Ser<'t, T> = <T as SerdeProject>::Ser<'t>;
-/// Alias for [`SerdeProject::De`].
-pub type De<'de, T> = <T as SerdeProject>::De<'de>;
-
-impl<T> SerdeProject for T where T: Serialize + DeserializeOwned + 'static {
-    type Ctx = NoContext;
-    type Ser<'t> = &'t Self;
-    type De<'de> = Self;
-
-    fn to_ser(&self, _: &()) -> Result<Self::Ser<'_>, BoxError> {
-        Ok(self)
+fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(f: impl FnOnce(&mut World, Entity) -> T) -> Result<T, S::Error> {
+    if !WORLD_MUT.is_set() {
+        return Err(serde::de::Error::custom("Cannot deserialize outside the `load` scope"))
     }
-
-    fn from_de(_: &mut (), de: Self::De<'_>) -> Result<Self, BoxError> {
-        Ok(de)
+    if !ENTITY.is_set() {
+        return Err(serde::de::Error::custom("No active entity found"))
     }
+    Ok(WORLD_MUT.with(|w| {
+        ENTITY.with(|e| f(w, *e))
+    }))
 }
 
-/// Specify serialized name of `Resource`.
-pub trait Named {
-    /// Name of the object, must be unique.
-    fn name() -> &'static str;
+/// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.
+/// 
+/// Due to the role of [`Default`] in `#[serde(skip)]`,
+/// `Default` should not be implemented on certain types.
+pub trait ZstInit: Sized {
+    fn init() -> Self;
 }
 
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///
 /// This means `world.save::<T>()` will try to serialize all entities that satisfies the filter.
-pub trait BindBevyObject {
-    type BevyObject: BevyObject;
+pub trait BevyObject {
+    type Object: Serialize + DeserializeOwned + ZstInit;
 
     type Filter: EntityFilter;
 
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.
     #[allow(unused)]
-    fn get_root(world: &mut World) -> Option<Entity> {
+    fn get_root(world: &mut World) -> Option<EntityWorldMut> {
         None
     }
 
     /// Name of the object, must be unique.
     fn name() -> &'static str;
-}
 
-/// Treat an [`Entity`], its [`Component`]s and its [`Children`] as a serializable object.
-///
-/// All [`Serialize`] + [`DeserializeOwned`] components automatically implements this.
-pub trait BevyObject {
-    type Ser<'t>: Serialize + 't where Self: 't;
-    type De<'de>: Deserialize<'de>;
-
-    /// Convert to a [`Serialize`] type, returns [`None`] only if the entity is not found.
-    #[allow(clippy::wrong_self_convention)]
-    fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, Box<Error>>;
-    /// Convert from a [`Deserialize`] type.
-    fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), Box<Error>>;
-}
-
-
-impl<T> BevyObject for T where T: SerdeProject + Component {
-    type Ser<'t> = T::Ser<'t> where T: 't;
-    type De<'de> = T::De<'de>;
-
-    #[allow(clippy::wrong_self_convention)]
-    fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, BoxError> {
-        let state = T::Ctx::from_world(world)?;
-        match world.get_entity(entity).and_then(|e| e.get::<T>()) {
-            Some(component) => component.to_ser(&state).map(Some),
-            None => Ok(None),
-        }
+    fn init() -> Self::Object {
+        Self::Object::init()
     }
 
-    fn from_de(world: &mut World, entity: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-        let mut state = T::Ctx::from_world_mut(world)?;
-        let result = T::from_de(&mut state, de)?;
-        drop(state);
-        world.entity_mut_ok(entity)?.insert(result);
-        Ok(())
+    fn filter(entity: &EntityRef) -> bool {
+        Self::Filter::filter(entity)
     }
 }
 
-/// Newtype project a foreign type to a [`SerdeProject`] type.
-///
-/// This is required for the `#[serde_project("MyNewType<..>")]` attribute.
-pub trait Convert<In> {
-    /// Convert a reference to a [`SerdeProject`] type's reference.
-    ///
-    /// You might want derive [`ref_cast`] to perform this conversion.
-    fn ser(input: &In) -> &Self;
-    /// Convert this [`SerdeProject`] type back to the original.
-    fn de(self) -> In;
-}
+impl<T> BevyObject for T where T: Component + Serialize + DeserializeOwned + TypePath {
+    type Object = SerializeComponent<T>;
 
-impl<T> Convert<T> for T {
-    fn ser(input: &T) -> &Self {
-        input
-    }
+    type Filter = With<T>;
 
-    fn de(self) -> T {
-        self
+    fn name() -> &'static str {
+        T::short_type_path()
     }
 }
 
-/// [`World`] functions that return a [`Result`].
-trait WorldUtil {
-    fn entity_ok(&self, entity: Entity) -> Result<EntityRef, BoxError>;
-    fn entity_mut_ok(&mut self, entity: Entity) -> Result<EntityWorldMut, BoxError>;
-    fn resource_ok<R: Resource>(&self) -> Result<&R, BoxError>;
-    fn resource_mut_ok<R: Resource>(&mut self) -> Result<Mut<'_, R>, BoxError>;
+/// Make a type usable in in the [`bind_object!`] macro.
+pub trait BindProject {
+    type To: Serialize + DeserializeOwned + ZstInit;
 }
 
-impl WorldUtil for World {
-    fn entity_ok(&self, entity: Entity) -> Result<EntityRef, BoxError> {
-        self.get_entity(entity)
-            .ok_or_else(||Error::EntityMissing(entity).boxed())
-    }
-
-    fn entity_mut_ok(&mut self, entity: Entity) -> Result<EntityWorldMut, BoxError> {
-        self.get_entity_mut(entity)
-            .ok_or_else(||Error::EntityMissing(entity).boxed())
-    }
-    fn resource_ok<R: Resource>(&self) -> Result<&R, BoxError> {
-        self.get_resource::<R>()
-            .ok_or_else(||Error::ResourceNotFound { ty: type_name::<R>() }.boxed())
-    }
-
-    fn resource_mut_ok<R: Resource>(&mut self) -> Result<Mut<'_, R>, BoxError> {
-        self.get_resource_mut::<R>()
-            .ok_or_else(||Error::ResourceNotFound { ty: type_name::<R>() }.boxed())
-    }
+impl<T> BindProject for T where T: BevyObject {
+    type To = T::Object;
 }

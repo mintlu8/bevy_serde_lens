@@ -3,11 +3,11 @@ use std::sync::Arc;
 
 use bevy_ecs::{component::Component, entity::Entity, system::{Commands, Query, RunSystemOnce}, world::{EntityWorldMut, World}};
 use bevy_hierarchy::DespawnRecursiveExt;
-use bevy_serde_project::{bind_object, entity::EntitySmartPointer, BevyObject, WorldExtension};
-use bevy_serde_project_derive::SerdeProject;
-use bevy_serde_project::entity::EntityPointer;
+use bevy_reflect::TypePath;
+use bevy_serde_lens::{entity::EntityPointer, BevyObject, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use bevy_serde_lens::entity::EntityPtr;
 
 #[derive(Debug, Component, Clone)]
 pub struct EntityRc {
@@ -34,7 +34,7 @@ impl EntityRcMaker for EntityWorldMut<'_> {
     }
 }
 
-impl<B: BevyObject> EntitySmartPointer<B> for EntityRc {
+impl<B: BevyObject> EntityPointer<B> for EntityRc {
     type Pointee = EntityRcDrop;
 
     fn from_entity(entity: Entity) -> Self {
@@ -64,28 +64,25 @@ pub fn drop_entity_pointee(
     }
 }
 
-#[derive(Debug, Component, SerdeProject)]
+#[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 pub struct EntityNumber {
-    #[serde_project("EntityPointer::<Number>")]
+    #[serde(with = "EntityPtr::<Number>")]
     entity: Entity,
     number: i32,
 }
 
 
-#[derive(Debug, Component, SerdeProject)]
+#[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 pub struct EntityNumberRc {
-    #[serde_project("EntityPointer::<Number, EntityRc>")]
+    #[serde(with = "EntityPtr::<Number>")]
     entity: EntityRc,
     number: i32,
 }
 
-#[derive(Debug, Component, Serialize, Deserialize)]
+#[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 pub struct Number {
     number: i32,
 }
-
-bind_object!(EntityNumber as "EntityNumber");
-bind_object!(EntityNumberRc as "EntityNumberRc");
 
 #[test]
 pub fn test1() {

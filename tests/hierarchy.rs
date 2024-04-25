@@ -1,47 +1,49 @@
-use bevy_ecs::{component::Component, world::World};
+use bevy_ecs::{component::Component, query::With, world::World};
 use bevy_hierarchy::BuildWorldChildren;
-use bevy_serde_project::{bind_object, ChildVec, Maybe, Object, SerdeProject, WorldExtension};
+use bevy_reflect::TypePath;
+use bevy_serde_lens::{bind_object, ChildVec, Maybe, WorldExtension};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Unit(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Weapon(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Armor(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Potion(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Ability(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct Effect(String);
 
-bind_object!(Unit as "Unit" {
-    unit => Unit,
-    #[serde(default, skip_serializing_if="Option::is_none")]
-    weapon => Maybe<Weapon>,
-    #[serde(default, skip_serializing_if="Option::is_none")]
-    armor => Maybe<Armor>,
-    #[serde(default, skip_serializing_if="Vec::is_empty")]
-    potions => ChildVec<Potion>,
-    #[serde(default, skip_serializing_if="Vec::is_empty")]
-    abilities => ChildVec<Object<Ability>>
+bind_object!(pub struct SerializeUnit as With<Unit> {
+    unit: Unit,
+    #[serde(default)]
+    weapon: Maybe<Weapon>,
+    #[serde(default)]
+    armor: Maybe<Armor>,
+    #[serde(default)]
+    potions: ChildVec<Potion>,
+    #[serde(default)]
+    abilities: ChildVec<SerializeAbility>
 });
 
-bind_object!(Ability as "Ability" {
-    ability => Ability,
-    effects => ChildVec<Effect>
+bind_object!(pub struct SerializeAbility as Ability {
+    ability: Ability,
+    effects: ChildVec<Effect>
 });
 
 #[test]
@@ -76,11 +78,16 @@ pub fn test() {
 
     let validation = json!([
         {
-            "unit": "Bob"
+            "unit": "Bob",
+            "weapon": null,
+            "armor": null,
+            "potions": [],
+            "abilities": []
         },
         {
             "unit": "Eric",
             "weapon": "Sword",
+            "armor": null,
             "potions": [
                 "Hp Potion",
                 "Mp Potion",
@@ -119,15 +126,15 @@ pub fn test() {
         },
     ]);
 
-    let value = world.save::<Unit, _>(serde_json::value::Serializer).unwrap();
+    let value = world.save::<SerializeUnit, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, validation);
 
-    world.despawn_bound_objects::<Unit>();
+    world.despawn_bound_objects::<SerializeUnit>();
     assert_eq!(world.entities().len(), 0);
 
-    world.load::<Unit, _>(&value).unwrap();
+    world.load::<SerializeUnit, _>(&value).unwrap();
 
-    let value = world.save::<Unit, _>(serde_json::value::Serializer).unwrap();
+    let value = world.save::<SerializeUnit, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, validation);
 
 }

@@ -1,8 +1,10 @@
 use bevy_ecs::{component::Component, world::World};
-use bevy_serde_project::{bind_object, SerdeProject, WorldExtension};
-use bevy_serde_project::typetagged::{BevyTypeTagged, IntoTypeTagged, TypeTagged};
+use bevy_reflect::TypePath;
+use bevy_serde_lens::WorldExtension;
+use bevy_serde_lens::typetagged::{TraitObject, IntoTypeTagged};
 use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
+use bevy_serde_lens::typetagged::TypeTagged;
 use serde_json::json;
 
 macro_rules! impl_animal {
@@ -39,7 +41,7 @@ pub trait Animal: Send + Sync + 'static {
     fn as_ser(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl BevyTypeTagged for dyn Animal {
+impl TraitObject for dyn Animal {
     fn name(&self) -> impl AsRef<str> {
         self.name()
     }
@@ -62,18 +64,11 @@ pub struct Turtle;
 
 impl_animal!(Bird, Dog, Turtle);
 
-#[derive(Component, SerdeProject)]
+#[derive(Component, Serialize, Deserialize, TypePath)]
 pub struct AnimalComponent {
-    #[serde_project("TypeTagged<Box<dyn Animal>>")]
+    #[serde(with = "TypeTagged")]
     animal: Box<dyn Animal>
 }
-
-bind_object!(
-    #[serde(transparent)]
-    AnimalComponent as "Animal" {
-        animal => AnimalComponent
-    }
-);
 
 #[test]
 pub fn test() {
