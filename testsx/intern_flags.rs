@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
 use bevy_ecs::{component::Component, system::Resource, world::World};
-use bevy_serde_project::{bind_object, interning::{Interner, InterningKey}, Error, SerdeProject, WorldExtension};
+use bevy_serde_lens::{bind_object, interning::{Interner, InterningKey}, Error, SerdeProject, WorldExtension};
 use rustc_hash::FxHashMap;
-use bevy_serde_project::interning::Interned;
+use bevy_serde_lens::interning::Interned;
 use serde_json::json;
 pub struct Flag(u64);
 

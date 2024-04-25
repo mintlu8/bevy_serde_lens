@@ -8,11 +8,14 @@ authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 readme = "README.md"
-repository = "https://github.com/mintlu8/bevy_serde_project"
+repository = "https://github.com/mintlu8/bevy_serde_lens"
 description = """
 Stateful, structural and human-readable serialization crate for the bevy engine.
 """
 keywords = ["bevy", "serde", "serialize", "save"]
+
+[features]
+validate-unique = []
 
 [lib]
 doctest = false
@@ -31,6 +34,7 @@ rustc-hash = "1.1.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
+paste = "1.0.14"
 
 [dev-dependencies]
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }

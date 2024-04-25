@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use bevy_ecs::{component::Component, entity::Entity, system::{Commands, Query, RunSystemOnce}, world::{EntityWorldMut, World}};
 use bevy_hierarchy::DespawnRecursiveExt;
-use bevy_serde_project::{bind_object, entity::EntitySmartPointer, BevyObject, WorldExtension};
-use bevy_serde_project_derive::SerdeProject;
-use bevy_serde_project::entity::EntityPointer;
+use bevy_serde_lens::{bind_object, entity::EntitySmartPointer, BevyObject, WorldExtension};
+use bevy_serde_lens_derive::SerdeProject;
+use bevy_serde_lens::entity::EntityPointer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

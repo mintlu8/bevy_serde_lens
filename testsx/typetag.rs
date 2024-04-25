@@ -1,6 +1,6 @@
 use bevy_ecs::{component::Component, world::World};
-use bevy_serde_project::{bind_object, SerdeProject, WorldExtension};
-use bevy_serde_project::typetagged::{BevyTypeTagged, IntoTypeTagged, TypeTagged};
+use bevy_serde_lens::{bind_object, SerdeProject, WorldExtension};
+use bevy_serde_lens::typetagged::{BevyTypeTagged, IntoTypeTagged, TypeTagged};
 use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

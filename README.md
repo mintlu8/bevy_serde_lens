@@ -1,7 +1,7 @@
-# bevy_serde_project
+# bevy_serde_lens
 
-[![Crates.io](https://img.shields.io/crates/v/bevy_serde_project.svg)](https://crates.io/crates/bevy_serde_project)
-[![Docs](https://docs.rs/bevy_serde_project/badge.svg)](https://docs.rs/bevy_serde_project/latest/bevy_serde_project/)
+[![Crates.io](https://img.shields.io/crates/v/bevy_serde_lens.svg)](https://crates.io/crates/bevy_serde_lens)
+[![Docs](https://docs.rs/bevy_serde_lens/badge.svg)](https://docs.rs/bevy_serde_lens/latest/bevy_serde_lens/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
 Stateful, structural and human-readable serialization crate for the bevy engine.

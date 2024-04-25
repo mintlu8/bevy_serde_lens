@@ -1,8 +1,8 @@
 #![allow(clippy::approx_constant)]
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_project::{bind_object, SerdeProject, WorldExtension};
-use bevy_serde_project::typetagged::{TaggedAny, AnyTagged};
+use bevy_serde_lens::{bind_object, SerdeProject, WorldExtension};
+use bevy_serde_lens::typetagged::{TaggedAny, AnyTagged};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

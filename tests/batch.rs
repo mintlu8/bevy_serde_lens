@@ -1,35 +1,32 @@
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
-use bevy_serde_project::{batch, bind_object, BindResource, Named, SerdeProject, WorldExtension};
+use bevy_reflect::TypePath;
+use bevy_serde_lens::{batch, bind_object, SerializeResource, WorldExtension};
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct A(char);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct B(f32);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct C(String);
 
-#[derive(SerdeProject, Component)]
+#[derive(Serialize, Deserialize, Component, TypePath)]
 #[serde(transparent)]
 pub struct D(usize);
 
-#[derive(SerdeProject, Resource)]
+#[derive(Serialize, Deserialize, Resource, TypePath)]
 #[serde(transparent)]
 pub struct R(usize);
 
-bind_object!(A as "A");
-bind_object!(B as "B");
-bind_object!(C as "C");
-bind_object!(D as "D");
-
-bind_object!(pub struct ABWithCD = (With<A>, With<B>, With<C>, With<D>) as "AB" {
-    a => A,
-    b => B,
+bind_object!(pub struct ABWithCD as (With<A>, With<B>, With<C>, With<D>) {
+    a: A,
+    b: B,
 });
 
 type AB = batch!(A, B);
@@ -37,13 +34,7 @@ type BD = batch!(B, D);
 type CD = batch!(C, D);
 type ABCD = batch!(A, B, C, D);
 
-impl Named for R {
-    fn name() -> &'static str {
-        "R"
-    }
-}
-
-type ABCDR = batch!(A, B, C, D, BindResource<R>);
+type ABCDR = batch!(A, B, C, D, SerializeResource<R>);
 
 #[test]
 pub fn test() {
@@ -120,6 +111,7 @@ pub fn test() {
     assert_eq!(world.entities().len(), 0);
 
     world.load::<ABCD, _>(&value).unwrap();
+    
     assert_eq!(world.entities().len(), 10);
 
     let value = world.save::<ABCD, _>(serde_json::value::Serializer).unwrap();

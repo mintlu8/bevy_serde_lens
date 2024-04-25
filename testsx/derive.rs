@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use bevy_asset::{Asset, Handle};
 use bevy_reflect::TypePath;
-use bevy_serde_project::SerdeProject;
-use bevy_serde_project::asset::PathHandle;
-use bevy_serde_project::{ProjectOption, ProjectVec, ProjectMap};
+use bevy_serde_lens::SerdeProject;
+use bevy_serde_lens::asset::PathHandle;
+use bevy_serde_lens::{ProjectOption, ProjectVec, ProjectMap};
 // This is not allowed
 // #[derive(SerdeProject)]
 // pub struct Nil;

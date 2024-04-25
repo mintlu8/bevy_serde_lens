@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetPlugin, Assets, Handle};
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_project::{bind_object, NoContext, SerdeProject, WorldExtension};
+use bevy_serde_lens::{bind_object, NoContext, SerdeProject, WorldExtension};
 use rustc_hash::FxHashMap;
 use serde_json::json;
 
@@ -16,16 +16,16 @@ impl SerdeProject for Int {
 
     type De<'de> = i32;
 
-    fn to_ser<'t>(&'t self, _: &<Self::Ctx as bevy_serde_project::FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<bevy_serde_project::Error>> {
+    fn to_ser<'t>(&'t self, _: &<Self::Ctx as bevy_serde_lens::FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<bevy_serde_lens::Error>> {
         Ok(self.0)
     }
 
-    fn from_de(_: &mut <Self::Ctx as bevy_serde_project::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<bevy_serde_project::Error>> {
+    fn from_de(_: &mut <Self::Ctx as bevy_serde_lens::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<bevy_serde_lens::Error>> {
         Ok(Self(de))
     }
 }
 
-use bevy_serde_project::{ProjectOption, ProjectVec, ProjectMap};
+use bevy_serde_lens::{ProjectOption, ProjectVec, ProjectMap};
 
 #[derive(Component, SerdeProject)]
 pub struct Thing {
@@ -39,7 +39,7 @@ pub struct Thing {
     map: FxHashMap<Int, Int>,
 }
 
-use bevy_serde_project::asset::UniqueHandle;
+use bevy_serde_lens::asset::UniqueHandle;
 
 #[derive(Component, SerdeProject)]
 pub struct ThingAsset {

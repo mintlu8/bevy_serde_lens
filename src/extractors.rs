@@ -1,15 +1,12 @@
-use std::marker::PhantomData;
+use std::{any::type_name, marker::PhantomData};
 
 use bevy_ecs::{system::Resource, world::FromWorld};
 use bevy_hierarchy::{BuildWorldChildren, Children};
-use serde::{de::{SeqAccess, Visitor}, Deserialize, Serialize, Serializer};
-use crate::{entity_missing, entity_missing_de, not_found, world_entity_scope, world_entity_scope_mut, BevyObject, ZstInit, ENTITY, WORLD, WORLD_MUT};
+use serde::{de::{DeserializeOwned, SeqAccess, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
+use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, ZstInit, ENTITY, WORLD, WORLD_MUT};
 
 #[allow(unused)]
 use bevy_ecs::component::Component;
-
-/// Extractor for casting a [`BindBevyObject`] to its bound [`BevyObject`].
-pub type Object<T> = <T as BevyObject>::Object;
 
 /// Extractor that allows a [`BevyObject`] to be missing.
 ///
@@ -17,11 +14,103 @@ pub type Object<T> = <T as BevyObject>::Object;
 /// so you can use `#[serde(skip_deserializing_if("Option::is_none"))]`.
 pub struct Maybe<T>(PhantomData<T>);
 
+impl<T: BevyObject> ZstInit for Maybe<T> {
+    fn init() -> Self { Self(PhantomData) }
+}
+
+impl<T: BevyObject> Default for Maybe<T> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+
+impl<T: BevyObject> BindProject for Maybe<T> {
+    type To = Self;
+}
+
+impl<T: BevyObject> Serialize for Maybe<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        WORLD.with(|world| {
+            ENTITY.with(|entity| {
+                match world.get_entity(*entity) {
+                    Some(entity_ref) => if T::filter(&entity_ref) {
+                        Some(T::init())
+                    } else {
+                        None
+                    },
+                    None => None,
+                }
+            })
+        }).serialize(serializer)
+    }
+}
+
+impl<'de, T: BevyObject> Deserialize<'de> for Maybe<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        <Option<T::Object>>::deserialize(deserializer)?;
+        Ok(Self(PhantomData))
+    }
+}
+
+impl<T: BevyObject> ZstInit for Maybe<Child<T>> {
+    fn init() -> Self { Self(PhantomData) }
+}
+
+impl<T: BevyObject> Default for Maybe<Child<T>> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<T: BevyObject> BindProject for Maybe<Child<T>> {
+    type To = Self;
+}
+
+impl<T: BevyObject> Serialize for Maybe<Child<T>> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        world_entity_scope(
+            |world, entity| {
+                let Some(entity) = world.get_entity(entity) else {
+                    return Err(serde::ser::Error::custom(format!(
+                        "Entity missing {entity:?}."
+                    )));
+                };
+                let Some(children) = entity.get::<Children>() else {
+                    return Err(serde::ser::Error::custom(format!(
+                        "No children found for {}.", type_name::<T>()
+                    )));
+                };
+                for entity in children {
+                    let Some(entity) = world.get_entity(*entity) else {continue};
+                    if T::filter(&entity) {
+                        return ENTITY.set(&entity.id(), || {
+                            Some(T::init()).serialize(serializer)
+                        })
+                    }
+                }
+                None::<T::Object>.serialize(serializer)
+            }
+        )
+    }
+}
+
+impl<'de, T: BevyObject> Deserialize<'de> for Maybe<Child<T>> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        <Option<Child<T>>>::deserialize(deserializer)?;
+        Ok(Self(PhantomData))
+    }
+}
+
 /// Convert a [`Default`] or [`FromWorld`] component to [`BevyObject`] using
 /// default initialization. 
 /// 
 /// Use `#[serde(skip)]` to skip serializing this component completely.
 pub struct DefaultInit<T>(PhantomData<T>);
+
+impl<T> ZstInit for DefaultInit<T> {
+    fn init() -> Self { Self(PhantomData) }
+}
+
+impl<T: Component + Serialize + DeserializeOwned + Default> BindProject for DefaultInit<T> {
+    type To = Self;
+}
 
 impl<T: FromWorld> Serialize for DefaultInit<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
@@ -58,8 +147,14 @@ impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: SeqAccess<'de>, {
         loop {
-            let entity = WORLD_MUT.with(|world| {world.spawn_empty().id()});
-            if seq.next_element::<T::Object>()?.is_none() {
+            let entity = WORLD_MUT.with(|world| {
+                let entity = world.spawn_empty().id();
+                if let Some(mut root) = T::get_root(world) {
+                    root.add_child(entity);
+                }
+                entity
+            });
+            if ENTITY.set(&entity, ||seq.next_element::<T::Object>())?.is_none() {
                 WORLD_MUT.with(|world| world.despawn(entity));
                 break
             }
@@ -74,15 +169,23 @@ impl<T> ZstInit for SerializeComponent<T> {
     fn init() -> Self { Self(PhantomData) }
 }
 
+impl<T: Component + Serialize + DeserializeOwned> BindProject for SerializeComponent<T> {
+    type To = Self;
+}
+
 impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
-                    return entity_missing::<_, S>(entity);
+                    return Err(serde::ser::Error::custom(format!(
+                        "Entity missing: {entity:?}."
+                    )));
                 };
                 let Some(component) = entity.get::<T>() else {
-                    return not_found::<_, S>();
+                    return Err(serde::ser::Error::custom(format!(
+                        "Component missing: {}.", std::any::type_name::<T>()
+                    )));
                 };
                 component.serialize(serializer)
             }
@@ -96,7 +199,9 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
         world_entity_scope_mut(
             |world, entity| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
-                    return entity_missing_de::<_, D>(entity);
+                    return Err(serde::de::Error::custom(format!(
+                        "Entity missing {entity:?}."
+                    )));
                 };
                 entity.insert(component);
                 Ok(Self(PhantomData))
@@ -116,7 +221,9 @@ impl<T: Resource + Serialize> Serialize for SerializeResource<T> {
         WORLD.with(
             |world| {
                 let Some(resource) = world.get_resource::<T>() else {
-                    return not_found::<_, S>();
+                    return Err(serde::ser::Error::custom(format!(
+                        "Resource missing {}.", std::any::type_name::<T>()
+                    )));
                 };
                 resource.serialize(serializer)
             }
@@ -143,7 +250,9 @@ impl<T: Serialize + 'static> Serialize for SerializeNonSend<T> {
         WORLD.with(
             |world| {
                 let Some(resource) = world.get_non_send_resource::<T>() else {
-                    return not_found::<_, S>();
+                    return Err(serde::ser::Error::custom(format!(
+                        "Non-send resource missing {}.", std::any::type_name::<T>()
+                    )));
                 };
                 resource.serialize(serializer)
             }
@@ -171,15 +280,30 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
 /// When more than one item is found.
 pub struct Child<T>(PhantomData<T>);
 
+impl<T> ZstInit for Child<T> {
+    fn init() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T: BevyObject> BindProject for Child<T> {
+    type To = Self;
+}
+
+
 impl<T: BevyObject> Serialize for Child<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         world_entity_scope(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
-                    return entity_missing::<_, S>(entity);
+                    return Err(serde::ser::Error::custom(format!(
+                        "Entity missing {entity:?}."
+                    )));
                 };
                 let Some(children) = entity.get::<Children>() else {
-                    return not_found::<_, S>();
+                    return Err(serde::ser::Error::custom(format!(
+                        "No children found for {}.", type_name::<T>()
+                    )));
                 };
                 for entity in children {
                     let Some(entity) = world.get_entity(*entity) else {continue};
@@ -189,7 +313,9 @@ impl<T: BevyObject> Serialize for Child<T> {
                         })
                     }
                 }
-                not_found::<_, S>()
+                Err(serde::ser::Error::custom(format!(
+                    "No valid children found for {}.", type_name::<T>()
+                )))
             }
         )
     }
@@ -220,13 +346,28 @@ impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
 /// When more than one item is found.
 pub struct ChildVec<T>(PhantomData<T>);
 
+impl<T> ZstInit for ChildVec<T> {
+    fn init() -> Self {
+        Self(PhantomData)
+    }
+}
+
+/// This is allowed since `0` is a valid number of children.
+impl<T> Default for ChildVec<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
 impl<T: BevyObject> Serialize for ChildVec<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeSeq;
         world_entity_scope(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
-                    return entity_missing::<_, S>(entity);
+                    return Err(serde::ser::Error::custom(format!(
+                        "Entity missing {entity:?}."
+                    )));
                 };
                 let children = match entity.get::<Children>() {
                     Some(children) => children.as_ref(),
@@ -267,45 +408,6 @@ impl<'de, T: BevyObject> Visitor<'de>  for ChildVec<T> {
     }
 }
 
-// /// Extractor for matching [`BevyObject`]s on a [`Children`].
-// /// 
-// /// Unlike [`ChildVec`] this tries to present a map.
-// ///
-// /// The underlying data structure is a [`Map`], 
-// /// so you can use `#[serde(skip_serializing_if("Map::is_empty"))]`.
-// pub struct ChildMap<K, V>(PhantomData<(K, V)>);
-
-// impl<K, V> BevyObject for ChildMap<K, V> where K: BevyObject, V: BevyObject {
-//     type Ser<'t> = Map<K::Ser<'t>, V::Ser<'t>> where K: 't, V: 't;
-//     type De<'de> = Map<K::De<'de>, V::De<'de>>;
-
-//     fn to_ser(world: &World, entity: Entity) -> Result<Option<Self::Ser<'_>>, BoxError> {
-//         let Some(children) = world.entity_ok(entity)?.get::<Children>() else {
-//             return Ok(Some(Map::new()));
-//         };
-//         children.iter()
-//             .filter_map(|entity|Some ((
-//                 K::to_ser(world, *entity).transpose()?, 
-//                 V::to_ser(world, *entity), 
-//             )))
-//             .map(|(key, value)| {Ok((
-//                 key?,
-//                 value?.ok_or_else(||Error::KeyNoValue { 
-//                     key: type_name::<K>(), 
-//                     value: type_name::<V>(), 
-//                 })?
-//             ))})
-//             .collect::<Result<Map<_, _>, _>>()
-//             .map(Some)
-//     }
-
-//     fn from_de(world: &mut World, parent: Entity, de: Self::De<'_>) -> Result<(), BoxError> {
-//         for item in de {
-//             let entity = world.spawn_empty().id();
-//             K::from_de(world, entity, item.0)?;
-//             V::from_de(world, entity, item.1)?;
-//             world.entity_mut(parent).add_child(entity);
-//         }
-//         Ok(())
-//     }
-// }
+impl<T: BevyObject> BindProject for ChildVec<T> {
+    type To = Self;
+}

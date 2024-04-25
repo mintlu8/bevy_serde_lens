@@ -1,49 +1,15 @@
 use bevy_app::App;
-use bevy_ecs::system::Resource;
-use bevy_ecs::{entity::Entity, world::World};
-use bevy_reflect::TypePath;
-use serde::ser::SerializeMap;
-use std::borrow::Cow;
-use std::cell::RefCell;
+use bevy_ecs::world::World;
 use std::sync::Mutex;
 use std::marker::PhantomData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::de::{DeserializeOwned, DeserializeSeed, MapAccess, Visitor};
-use crate::extractors::{Root, SerializeNonSend, SerializeResource};
-use crate::{BevyObject, ZstInit, ENTITY, WORLD, WORLD_MUT};
+use serde::de::DeserializeSeed;
+use crate::typetagged::{BevyTypeTagged, DeserializeAnyFn, IntoTypeTagged, TypeTagServer, TYPETAG_SERVER};
+use crate::{BatchSerialization, WORLD_MUT};
 
 #[allow(unused)]
 use crate::batch;
 
-/// A [`Serialize`] type from a [`World`] reference and a [`SaveLoad`] type.
-pub struct SerializeLens<'t, S: BatchSerialization>(Mutex<&'t mut World>, PhantomData<S>);
- 
-impl<T: BatchSerialization> Serialize for SerializeLens<'_, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        self.0.lock().unwrap().save::<T, S>(serializer)
-    }
-}
-
-/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
-pub struct DeserializeLens<'t, S: BatchSerialization>(&'t mut World, PhantomData<S>);
-
-impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
-        self.0.load::<T, D>(deserializer)
-    }
-}
-
-/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
-pub struct ScopedDeserializeLens<'t, S: BatchSerialization>(PhantomData<&'t S>);
-
-impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<'de, T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
-        T::deserialize(deserializer)?;
-        Ok(Self(PhantomData))
-    }
-}
 /// Extension methods on [`World`].
 pub trait WorldExtension {
     /// Save a [`BindBevyObject`] type or a group created by [`batch!`].
@@ -69,18 +35,18 @@ pub trait WorldExtension {
     fn scoped_deserialize_lens<S: BatchSerialization, T>(&mut self, f: impl FnOnce(ScopedDeserializeLens<S>) -> T) -> T;
     /// Despawn all entities in a [`BindBevyObject`] type or a group created by [`batch!`] recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);
-    // /// Register a type that can be deserialized dynamically.
-    // fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
-    // /// Register a type that can be deserialized dynamically from a primitive.
-    // /// 
-    // /// Accepts a `Fn(T) -> Result<Out, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
-    // /// 
-    // /// # Example 
-    // /// ```
-    // /// // deserialize number as the default attacking type
-    // /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
-    // /// ```
-    // fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
+    /// Register a type that can be deserialized dynamically.
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self);
+    /// Register a type that can be deserialized dynamically from a primitive.
+    /// 
+    /// Accepts a `Fn(T) -> Result<Out, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
+    /// 
+    /// # Example 
+    /// ```
+    /// // deserialize number as the default attacking type
+    /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
+    /// ```
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
 }
 
 impl WorldExtension for World {
@@ -89,25 +55,12 @@ impl WorldExtension for World {
     }
 
     fn load<'de, T: BatchSerialization, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
-        WORLD_MUT.set(self, || T::deserialize(deserializer)).map(|_|())
-        // macro_rules! inner {
-        //     () => {
-        //         if let Some(server) = self.remove_resource::<DeserializeAnyServer>() {
-        //             let result = scoped_any(&server, ||T::load(self, deserializer));
-        //             self.insert_resource(server);
-        //             result
-        //         } else {
-        //             T::load(self, deserializer)
-        //         }
-        //     };
-        // }
-        // if let Some(server) = self.remove_resource::<TypeTagServer>() {
-        //     let result = scoped(&server, ||inner!());
-        //     self.insert_resource(server);
-        //     result
-        // } else {
-        //     inner!()
-        // }
+        self.init_resource::<TypeTagServer>();
+        self.resource_scope::<TypeTagServer, _>(|world, server| {
+            TYPETAG_SERVER.set(&server, || {
+                WORLD_MUT.set(world, || T::De::deserialize(deserializer)).map(|_|())
+            })
+        })
     }
 
     fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S> {
@@ -126,15 +79,15 @@ impl WorldExtension for World {
         T::despawn(self)
     }
 
-    // fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
-    //     let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
-    //     server.register::<A, B>()
-    // }
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
+        let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
+        server.register::<A, B>()
+    }
 
-    // fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
-    //     let mut server = self.get_resource_or_insert_with(DeserializeAnyServer::default);
-    //     server.register::<T, O>(f)
-    // }
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+        let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
+        server.register_deserialize_any::<T, O>(f)
+    }
 }
 
 impl WorldExtension for App {
@@ -162,189 +115,42 @@ impl WorldExtension for App {
         self.world.despawn_bound_objects::<T>()
     }
 
-    // fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
-    //     self.world.register_typetag::<A, B>()
-    // }
-
-    // fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
-    //     self.world.register_deserialize_any::<T, O>(f)
-    // }
-}
-
-/// A batch serialization type.
-pub trait BatchSerialization: DeserializeOwned + ZstInit {
-    const LEN: usize;
-    fn despawn(world: &mut World);
-    fn serialize<S: Serializer>(world: &mut World, s: S) -> Result<S::Ok, S::Error>;
-    fn save_map<S: SerializeMap>(serializer: &mut S, world: &mut World) -> Result<(), S::Error>;
-    fn deserialize_map<'de, M>(name: &str, map: &mut M) -> Result<(), M::Error> where M: MapAccess<'de>;
-}
-
-
-pub trait SerializeWorld: DeserializeOwned + ZstInit {
-    fn name() -> &'static str;
-    fn serialize<S: Serializer>(world: &mut World, s: S) -> Result<S::Ok, S::Error>;
-    fn despawn(world: &mut World);
-}
-
-impl<T> BatchSerialization for T where T: SerializeWorld {
-    const LEN: usize = 1;
-
-    fn despawn(world: &mut World) {
-        <T as SerializeWorld>::despawn(world)
+    fn register_typetag<A: BevyTypeTagged, B: IntoTypeTagged<A>>(&mut self){
+        self.world.register_typetag::<A, B>()
     }
 
-    fn serialize<S: Serializer>(world: &mut World, s: S) -> Result<S::Ok, S::Error> {
-        <T as SerializeWorld>::serialize(world, s)
-    }
-
-    fn save_map<S: SerializeMap>(serializer: &mut S, world: &mut World) -> Result<(), S::Error> {
-        serializer.serialize_entry(Self::name(), &SerializeWorldLens {
-            world: RefCell::new(world),
-            p: PhantomData::<T>,
-        })
-    }
-
-    fn deserialize_map<'de, M>(name: &str, map: &mut M) -> Result<(), M::Error> where M: MapAccess<'de> {
-        if name == Self::name() {
-            map.next_value::<Self>()?;
-            Ok(())
-        } else {
-            Err(serde::de::Error::custom(
-                format!("Unknown type name {name}.")
-            ))
-        }
+    fn register_deserialize_any<T: BevyTypeTagged, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+        self.world.register_deserialize_any::<T, O>(f)
     }
 }
 
-struct SerializeWorldLens<'t, S: SerializeWorld> {
-    world: RefCell<&'t mut World>,
-    p: PhantomData<S>,
-}
 
-impl<'t, T: SerializeWorld> serde::Serialize for SerializeWorldLens<'t, T> {
+/// A [`Serialize`] type from a [`World`] reference and a [`SaveLoad`] type.
+pub struct SerializeLens<'t, S: BatchSerialization>(Mutex<&'t mut World>, PhantomData<S>);
+ 
+impl<T: BatchSerialization> Serialize for SerializeLens<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        T::serialize(*self.world.borrow_mut(), serializer)
+        self.0.lock().unwrap().save::<T, S>(serializer)
     }
 }
 
-impl<T> SerializeWorld for Root<T> where T: BevyObject {
-    fn name() -> &'static str {
-        <T as BevyObject>::name()
-    }
+/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
+pub struct DeserializeLens<'t, S: BatchSerialization>(&'t mut World, PhantomData<S>);
 
-    fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeSeq;
-        let mut query = world.query_filtered::<Entity, T::Filter>();
-        let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
-        for entity in query.iter(world) {
-            WORLD.set(world, || {
-                ENTITY.set(&entity, || {
-                    seq.serialize_element(&T::init())
-                })
-            })?;
-        };
-        seq.end()
-    }
-    
-    fn despawn(world: &mut World) {
-        let mut query = world.query_filtered::<Entity, T::Filter>();
-        let queue = query.iter(world).collect::<Vec<_>>();
-        for entity in queue {
-            bevy_hierarchy::despawn_with_children_recursive(world, entity);
-        }
+impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+        self.0.load::<T, D>(deserializer)
     }
 }
 
-impl<T> SerializeWorld for SerializeResource<T> where T: Resource + Serialize + DeserializeOwned + TypePath {
-    fn name() -> &'static str {
-        T::short_type_path()
-    }
+/// A [`DeserializeSeed`] type from a [`World`] reference and a [`SaveLoad`] type.
+pub struct ScopedDeserializeLens<'t, S: BatchSerialization>(PhantomData<&'t S>);
 
-    fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        WORLD.set(world, || {
-            Self::init().serialize(serializer)
-        })
-    }
-    
-    fn despawn(world: &mut World) {
-        world.remove_resource::<T>();
-    }
-}
-
-impl<T> SerializeWorld for SerializeNonSend<T> where T: Serialize + DeserializeOwned + TypePath + 'static {
-    fn name() -> &'static str {
-        T::short_type_path()
-    }
-
-    fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        WORLD.set(world, || {
-            Self::init().serialize(serializer)
-        })
-    }
-    
-    fn despawn(world: &mut World) {
-        world.remove_non_send_resource::<T>();
-    }
-}
-
-#[doc(hidden)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Join<A, B>(PhantomData<(A, B)>);
-
-impl<A, B> ZstInit for Join<A, B> {
-    fn init() -> Self {
-        Join(PhantomData)
-    }
-}
-
-impl<A, B> BatchSerialization for Join<A, B> where A: SerializeWorld, B: BatchSerialization {
-    const LEN: usize = B::LEN + 1;
-    fn despawn(world: &mut World) {
-        A::despawn(world);
-        B::despawn(world);
-    }
-
-    fn save_map<S: SerializeMap>(serializer: &mut S, world: &mut World, ) -> Result<(), S::Error> {
-        serializer.serialize_entry(A::name(), &SerializeWorldLens {
-            world: RefCell::new(world),
-            p: PhantomData::<A>,
-        })?;
-        B::save_map(serializer, world)
-    }
-
-    fn serialize<S: Serializer>(world: &mut World, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(Self::LEN))?;
-        Self::save_map(&mut map, world)?;
-        B::save_map(&mut map, world)?;
-        map.end()
-    }
-
-    fn deserialize_map<'de, M>(name: &str, map: &mut M) -> Result<(), M::Error> where M: MapAccess<'de> {
-        if name == A::name() {
-            map.next_value::<A>()?;
-        }
-        Ok(())
-    }
-}
-
-impl<'de, A, B> Deserialize<'de> for Join<A, B> where A: SerializeWorld, B: BatchSerialization {
+impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<'de, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
-        deserializer.deserialize_map(Join::<A, B>(PhantomData))
-    }
-}
-
-impl<'de, A, B> Visitor<'de> for Join<A, B> where A: SerializeWorld, B: BatchSerialization {
-    type Value = Join<A, B>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("map of types")
-    }
-
-    fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error> where M: MapAccess<'de>, {
-        while let Some(key) = map.next_key::<Cow<str>>()? {
-            Self::deserialize_map(&key, &mut map)?
-        }
-        Ok(Join(PhantomData))
+        T::De::deserialize(deserializer)?;
+        Ok(Self(PhantomData))
     }
 }

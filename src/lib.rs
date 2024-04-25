@@ -1,21 +1,18 @@
 #![doc = include_str!("../README.md")]
-
-use std::cell::Cell;
-
-use bevy_ecs::component::Component;
+use bevy_ecs::{component::Component, world::EntityWorldMut};
 use bevy_ecs::world::EntityRef;
-use bevy_reflect::TypePath;
-use extractors::SerializeComponent;
-use sealed::Sealed;
 use serde::{de::DeserializeOwned, Serialize};
 mod extractors;
-pub use extractors::{Object, DefaultInit, Maybe, Child};
+pub use extractors::*;
 mod save_load;
-//pub use save_load::{WorldExtension, Join, SaveLoad, BindResource};
+mod batch;
+pub use batch::{Join, BatchSerialization, SerializeWorld};
+pub use save_load::{WorldExtension, SerializeLens, DeserializeLens, ScopedDeserializeLens};
 mod macros;
+pub mod interning;
+pub mod asset;
+pub mod typetagged;
 // pub mod typetagged;
-// pub mod asset;
-// pub mod interning;
 // pub mod entity;
 mod filter;
 
@@ -30,23 +27,10 @@ use bevy_hierarchy::Children;
 pub use bevy_ecs::{world::World, entity::Entity, query::With};
 #[doc(hidden)]
 pub use serde;
-
-fn entity_missing<T, S: serde::Serializer>(entity: Entity) -> Result<T, S::Error> {
-    Err(serde::ser::Error::custom(format!("Entity {entity:?} missing")))
-}
-
-fn entity_missing_de<'de, T, S: serde::Deserializer<'de>>(entity: Entity) -> Result<T, S::Error> {
-    Err(serde::de::Error::custom(format!("Entity {entity:?} missing")))
-}
-
-fn not_found<T, S: serde::Serializer>() -> Result<T, S::Error> {
-    Err(serde::ser::Error::custom("Bevy object not found."))
-}
-
-thread_local! {
-    //static WORLD: Cell<*mut World> = const { Cell::new(std::ptr::null_mut()) };
-    static ERR: Cell<bool> = Cell::new(false);
-}
+#[doc(hidden)]
+pub use paste::paste;
+#[doc(hidden)]
+pub use bevy_reflect::TypePath;
 
 scoped_tls_hkt::scoped_thread_local!( 
     static ENTITY: Entity
@@ -60,39 +44,65 @@ scoped_tls_hkt::scoped_thread_local!(
     static mut WORLD_MUT: World
 );
 
+/// Run a function on a read only reference to [`World`].
+/// 
+/// Can only be used in [`Serialize`](serde::Serialize) implementations.
+pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> T {
+    WORLD.with(f)
+}
+
+/// Run a function on a mutable only reference to [`World`].
+/// 
+/// Can only be used in [`Deserialize`](serde::Deserialize) implementations.
+/// 
+/// # Panics
+/// 
+/// If used in a nested manner, as that is a violation to rust's aliasing rule.
+/// 
+/// ```
+/// with_world_mut(|| {
+///     // panics here
+///     with_world_mut(|| {
+///         ..
+///     })
+/// })
+/// ```
+pub fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
+    WORLD_MUT.with(f)
+}
+
 
 fn world_entity_scope<T>(f: impl FnOnce(&World, Entity) -> T) -> T{
+    if !WORLD.is_set() {
+        panic!("Cannot serialize outside the `save` scope")
+    }
+    if !ENTITY.is_set() {
+        panic!("No active entity found")
+    }
     WORLD.with(|w| {
         ENTITY.with(|e| f(w, *e))
     })
 }
 
 fn world_entity_scope_mut<T>(f: impl FnOnce(&mut World, Entity) -> T) -> T{
+    if !WORLD_MUT.is_set() {
+        panic!("Cannot deserialize outside the `load` scope")
+    }
+    if !ENTITY.is_set() {
+        panic!("No active entity found")
+    }
     WORLD_MUT.with(|w| {
         ENTITY.with(|e| f(w, *e))
     })
 }
 
-
+/// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.
+/// 
+/// Due to the role of [`Default`] in `#[serde(skip)]`,
+/// `Default` should not be implemented on certain types.
 pub trait ZstInit: Sized {
     fn init() -> Self;
 }
-
-mod sealed {
-    pub trait Sealed {}
-}
-
-
-impl Sealed for () {}
-pub struct ComponentToken;
-
-impl Sealed for ComponentToken {}
-pub struct ResourceToken;
-
-impl Sealed for ResourceToken {}
-pub struct NonSendResourceToken;
-
-impl Sealed for NonSendResourceToken {}
 
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///
@@ -105,7 +115,7 @@ pub trait BevyObject {
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.
     #[allow(unused)]
-    fn get_root(world: &mut World) -> Option<Entity> {
+    fn get_root(world: &mut World) -> Option<EntityWorldMut> {
         None
     }
 
@@ -124,9 +134,18 @@ pub trait BevyObject {
 impl<T> BevyObject for T where T: Component + Serialize + DeserializeOwned + TypePath {
     type Object = SerializeComponent<T>;
 
-    type Filter = ();
+    type Filter = With<T>;
 
     fn name() -> &'static str {
         T::short_type_path()
     }
+}
+
+/// Make a type usable in in the [`bind_object!`] macro.
+pub trait BindProject {
+    type To: Serialize + DeserializeOwned + ZstInit;
+}
+
+impl<T> BindProject for T where T: BevyObject {
+    type To = T::Object;
 }
