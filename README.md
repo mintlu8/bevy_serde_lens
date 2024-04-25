@@ -22,7 +22,6 @@ Imagine we want to Serialize an `Entity` Character with some components and chil
 
 ```rust
 bind_object!(pub struct SerializeCharacter as (With<Character>, Without<NPC>) {
-    #[serde(flatten)]
     character: Character,
     position: Position,
     #[serde(default)]
@@ -112,7 +111,7 @@ you can use `#[serde(with = "PathHandle")]` like so
 ```rust
 #[derive(Serialize, Deserialize)]
 struct MySprite {
-    `#[serde(with = "PathHandle")]`
+    #[serde(with = "PathHandle")]
     image: Handle<Image>
 }
 ```
@@ -143,7 +142,7 @@ then
 ```rust
 #[derive(Serialize, Deserialize)]
 struct MyComponent {
-    `#[serde(with = "TypeTagged")]`
+    #[serde(with = "TypeTagged")]
     weapon: Box<dyn Weapon>
 }
 ```
