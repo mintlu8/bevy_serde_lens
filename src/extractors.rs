@@ -65,7 +65,7 @@ impl<T: BevyObject> BindProject for Maybe<Child<T>> {
 
 impl<T: BevyObject> Serialize for Maybe<Child<T>> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope(
+        world_entity_scope::<_, S>(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
                     return Err(serde::ser::Error::custom(format!(
@@ -87,7 +87,7 @@ impl<T: BevyObject> Serialize for Maybe<Child<T>> {
                 }
                 None::<T::Object>.serialize(serializer)
             }
-        )
+        )?
     }
 }
 
@@ -175,7 +175,7 @@ impl<T: Component + Serialize + DeserializeOwned> BindProject for SerializeCompo
 
 impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope(
+        world_entity_scope::<_, S>(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
                     return Err(serde::ser::Error::custom(format!(
@@ -189,14 +189,14 @@ impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
                 };
                 component.serialize(serializer)
             }
-        )
+        )?
     }
 }
 
 impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeComponent<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         let component = T::deserialize(deserializer)?;
-        world_entity_scope_mut(
+        world_entity_scope_mut::<_, D>(
             |world, entity| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(serde::de::Error::custom(format!(
@@ -206,7 +206,7 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
                 entity.insert(component);
                 Ok(Self(PhantomData))
             }
-        )
+        )?
     }
 }
 
@@ -270,14 +270,6 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
 
 /// Extractor for a single [`BevyObject`] in [`Children`]
 /// instead of the entity itself. 
-///
-/// This will iterate through all children
-/// to validate uniqueness. [`ChildUnchecked`] is a non-checking
-/// alternative. Alternatively use [`ChildVec`] for a list of objects.
-///
-/// # Errors
-///
-/// When more than one item is found.
 pub struct Child<T>(PhantomData<T>);
 
 impl<T> ZstInit for Child<T> {
@@ -293,7 +285,7 @@ impl<T: BevyObject> BindProject for Child<T> {
 
 impl<T: BevyObject> Serialize for Child<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-        world_entity_scope(
+        world_entity_scope::<_, S>(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
                     return Err(serde::ser::Error::custom(format!(
@@ -317,33 +309,25 @@ impl<T: BevyObject> Serialize for Child<T> {
                     "No valid children found for {}.", type_name::<T>()
                 )))
             }
-        )
+        )?
     }
 }
 
 impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-        world_entity_scope_mut(|world, entity| {
+        world_entity_scope_mut::<_, D>(|world, entity| {
             let new_child = world.spawn_empty().id();
             ENTITY.set(&new_child, || {
                 <T::Object>::deserialize(deserializer)
             })?;
             world.entity_mut(entity).add_child(new_child);
             Ok(Child(PhantomData))
-        })
+        })?
     }
 }
 
-/// Extractor for a single [`BevyObject`] in [`Children`]
-/// instead of the entity itself. 
-///
-/// This will iterate through all children
-/// to validate uniqueness. [`ChildUnchecked`] is a non-checking
-/// alternative. Alternatively use [`ChildVec`] for a list of objects.
-///
-/// # Errors
-///
-/// When more than one item is found.
+/// Extractor for multiple [`BevyObject`]s in [`Children`]
+/// instead of the entity itself. This serializes children like a `Vec`.
 pub struct ChildVec<T>(PhantomData<T>);
 
 impl<T> ZstInit for ChildVec<T> {
@@ -362,7 +346,7 @@ impl<T> Default for ChildVec<T> {
 impl<T: BevyObject> Serialize for ChildVec<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
         use serde::ser::SerializeSeq;
-        world_entity_scope(
+        world_entity_scope::<_, S>(
             |world, entity| {
                 let Some(entity) = world.get_entity(entity) else {
                     return Err(serde::ser::Error::custom(format!(
@@ -385,7 +369,7 @@ impl<T: BevyObject> Serialize for ChildVec<T> {
                 }
                 seq.end()
             }
-        )
+        )?
     }
 }
 

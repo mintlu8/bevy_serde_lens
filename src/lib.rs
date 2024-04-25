@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 use bevy_ecs::{component::Component, world::EntityWorldMut};
 use bevy_ecs::world::EntityRef;
+use serde::{Deserializer, Serializer};
 use serde::{de::DeserializeOwned, Serialize};
 mod extractors;
 pub use extractors::*;
@@ -47,8 +48,13 @@ scoped_tls_hkt::scoped_thread_local!(
 /// Run a function on a read only reference to [`World`].
 /// 
 /// Can only be used in [`Serialize`](serde::Serialize) implementations.
-pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> T {
-    WORLD.with(f)
+pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
+    if !WORLD.is_set() {
+        Err(serde::ser::Error::custom("Cannot serialize outside the `save` scope"))
+    } else {
+        Ok(WORLD.with(f))
+    }
+    
 }
 
 /// Run a function on a mutable only reference to [`World`].
@@ -67,33 +73,37 @@ pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> T {
 ///     })
 /// })
 /// ```
-pub fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
-    WORLD_MUT.with(f)
-}
-
-
-fn world_entity_scope<T>(f: impl FnOnce(&World, Entity) -> T) -> T{
-    if !WORLD.is_set() {
-        panic!("Cannot serialize outside the `save` scope")
-    }
-    if !ENTITY.is_set() {
-        panic!("No active entity found")
-    }
-    WORLD.with(|w| {
-        ENTITY.with(|e| f(w, *e))
-    })
-}
-
-fn world_entity_scope_mut<T>(f: impl FnOnce(&mut World, Entity) -> T) -> T{
+pub fn with_world_mut<'de, T, S: Deserializer<'de>>(f: impl FnOnce(&mut World) -> T) -> Result<T, S::Error> {
     if !WORLD_MUT.is_set() {
-        panic!("Cannot deserialize outside the `load` scope")
+        Err(serde::de::Error::custom("Cannot deserialize outside the `load` scope"))
+    } else {
+        Ok(WORLD_MUT.with(f))
+    }
+}
+
+
+fn world_entity_scope<T, S: Serializer>(f: impl FnOnce(&World, Entity) -> T) -> Result<T, S::Error>{
+    if !WORLD.is_set() {
+        return Err(serde::ser::Error::custom("Cannot serialize outside the `save` scope"))
     }
     if !ENTITY.is_set() {
-        panic!("No active entity found")
+        return Err(serde::ser::Error::custom("No active entity found"))
     }
-    WORLD_MUT.with(|w| {
+    Ok(WORLD.with(|w| {
         ENTITY.with(|e| f(w, *e))
-    })
+    }))
+}
+
+fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(f: impl FnOnce(&mut World, Entity) -> T) -> Result<T, S::Error> {
+    if !WORLD_MUT.is_set() {
+        return Err(serde::de::Error::custom("Cannot deserialize outside the `load` scope"))
+    }
+    if !ENTITY.is_set() {
+        return Err(serde::de::Error::custom("No active entity found"))
+    }
+    Ok(WORLD_MUT.with(|w| {
+        ENTITY.with(|e| f(w, *e))
+    }))
 }
 
 /// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.

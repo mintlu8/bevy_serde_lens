@@ -1,3 +1,4 @@
+#![allow(clippy::upper_case_acronyms)]
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{batch, bind_object, SerializeResource, WorldExtension};

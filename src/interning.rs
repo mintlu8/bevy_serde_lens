@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde::Serializer;
 
-use crate::with_world_mut;
+use crate::with_world;
 
 /// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
@@ -40,7 +40,7 @@ impl<T: InterningKey> Deref for Interned<T> {
 
 impl<T: InterningKey> Serialize for Interned<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world_mut(|world| {
+        with_world::<_, S>(|world| {
             match world.get_resource::<T::Interner>() {
                 Some(interner) => match interner.get(&self.0) {
                     Ok(value) => value.serialize(serializer),
@@ -50,6 +50,6 @@ impl<T: InterningKey> Serialize for Interned<T> {
                     format!("Interner resource {} missing.", type_name::<T::Interner>())
                 )),
             }
-        })
+        })?
     }
 }
