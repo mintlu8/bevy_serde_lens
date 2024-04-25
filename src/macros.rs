@@ -1,5 +1,5 @@
 #[allow(unused)]
-use crate::{BevyObject, Component, BindBevyObject, Object, Maybe, SerdeProject};
+use crate::{Component, BevyObject, Object, Maybe};
 
 /// Bind a [`BevyObject`] to a [`Component`].
 ///

@@ -1,10 +1,7 @@
-[workspace]
-
-members = ["derive"]
 
 [package]
-name = "bevy_serde_project"
-version = "0.3.2"
+name = "bevy_serde_lens"
+version = "0.1.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -20,10 +17,6 @@ keywords = ["bevy", "serde", "serialize", "save"]
 [lib]
 doctest = false
 
-[features]
-default = ["derive"]
-derive = ["dep:bevy_serde_project_derive"]
-
 [dependencies]
 bevy_ecs = "0.13.0"
 bevy_app = "0.13.0"
@@ -37,8 +30,7 @@ serde = { version = "1.0.197", features = ["derive"] }
 rustc-hash = "1.1.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
-scoped-tls = "1.0.1"
-bevy_serde_project_derive = { version = "0.2.0", path = "./derive", optional = true }
+scoped-tls-hkt = "0.1.4"
 
 [dev-dependencies]
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }

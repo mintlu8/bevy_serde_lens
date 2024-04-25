@@ -3,7 +3,7 @@ use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
 use serde::Deserialize;
 use serde::Serialize;
-use crate::{BoxError, Convert, FromWorldAccess, SerdeProject};
+use crate::{BoxError, FromWorldAccess};
 
 /// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
@@ -24,16 +24,6 @@ pub trait Interner<Key>: Resource {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, RefCast)]
 #[repr(transparent)]
 pub struct Interned<T: InterningKey>(pub T);
-
-impl<T: InterningKey> Convert<T> for Interned<T> {
-    fn ser(input: &T) -> &Self {
-        Self::ref_cast(input)
-    }
-
-    fn de(self) -> T {
-        self.0
-    }
-}
 
 impl<T: InterningKey> SerdeProject for Interned<T> where
         for<'t> <T::Interner as Interner<T>>::ValueRef<'t>: Serialize,
