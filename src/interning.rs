@@ -1,6 +1,7 @@
 //! Module for interning data in a [`Resource`].
 use std::any::type_name;
 use std::ops::Deref;
+use std::ops::DerefMut;
 
 use bevy_ecs::system::Resource;
 use ref_cast::RefCast;
@@ -29,7 +30,7 @@ pub trait Interner<Key>: Resource {
 }
 
 /// Projection of an [`InterningKey`] that serializes the interned value.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, RefCast)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
 pub struct Interned<T: InterningKey>(pub T);
 
@@ -37,6 +38,12 @@ impl<T: InterningKey> Deref for Interned<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T: InterningKey> DerefMut for Interned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

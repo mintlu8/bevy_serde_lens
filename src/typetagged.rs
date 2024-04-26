@@ -76,7 +76,7 @@
 //! on primitives.
 
 
-use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData, rc::Rc, sync::Arc};
+use std::{any::{Any, TypeId}, borrow::Cow, marker::PhantomData, ops::{Deref, DerefMut}, rc::Rc, sync::Arc};
 use bevy_ecs::system::Resource;
 use bevy_reflect::TypePath;
 use erased_serde::Deserializer;
@@ -89,9 +89,23 @@ scoped_tls_hkt::scoped_thread_local! {
 }
 
 /// A serializable trait object.
-#[derive(Debug, RefCast)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
 pub struct TypeTagged<T: TraitObject>(pub T);
+
+impl<T: TraitObject> Deref for TypeTagged<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: TraitObject> DerefMut for TypeTagged<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// A serializable trait object that uses `deserialize_any`.
 /// 
@@ -120,9 +134,23 @@ pub struct TypeTagged<T: TraitObject>(pub T);
 /// 
 /// Due to the serde specification this is not allowed on non-self-describing formats
 /// like `postcard` and will cause an error, be careful when using this in multiple formats.
-#[derive(Debug, RefCast)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
 pub struct AnyTagged<T: TraitObject>(pub T);
+
+impl<T: TraitObject> Deref for AnyTagged<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: TraitObject> DerefMut for AnyTagged<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// A trait object like `Box<dyn T>` that is (de)serializable with world access.
 ///
