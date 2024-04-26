@@ -1,7 +1,7 @@
 
 [package]
 name = "bevy_serde_lens"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
