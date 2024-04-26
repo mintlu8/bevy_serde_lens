@@ -13,21 +13,21 @@ use bevy_ecs::query::QueryFilter;
 ///     // `serde` attributes are allowed.
 ///     #[serde(flatten)]
 ///     // Serialize the main component, this is required.
-///     this => Weapon,
+///     this: Weapon,
 ///     // Find and serialize component `Durability`, error if not found.
-///     durability => Durability,
+///     durability: Durability,
 ///     // Find and serialize component `CustomName` as an `Option<CustomName>`.
 ///     // Without Maybe not finding `CustomName` would be an error.
-///     custom_name => Maybe<CustomName>,
+///     #[serde(default)]
+///     custom_name: Maybe<CustomName>,
 ///     // Find and serialize all components `Enchant` in children like a `Vec`.
-///     #[serde(default, skip_serializing_if = "Vec::None")]
-///     enchants => ChildVec<Enchant>,
+///     #[serde(default)]
+///     enchants: ChildVec<Enchant>,
 ///     // Find and serialize all `BevyObject`s `Gem` in children like a `Vec`.
-///     // Note without `Object` we would serialize components `Gem` instead.
-///     gems => ChildVec<Object<Gem>>,
+///     gems: ChildVec<Gem>,
 ///     // Find zero or one component `Forge` in children as an `Option<Forge>`.
 ///     // Errors if more than one found.
-///     forge => Child<Maybe<Forge>>,
+///     forge: Maybe<Child<Forge>>,
 /// });
 /// ```
 ///

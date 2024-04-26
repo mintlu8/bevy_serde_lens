@@ -58,8 +58,9 @@ let lens = world.serialize_lens::<Character>();
 serde_json::to_string(&lens);
 // This signature works because the world is stored as a thread local
 world.scoped_deserialize_lens(|| {
-    // Return type doesn't matter, data is stored in the world
+    // Return object doesn't matter, data is stored in the world
     let _: ScopedDeserializeLens<Character> = serde_json::from_str(&my_string);
+    let _: ScopedDeserializeLens<Monster> = serde_json::from_str(&my_string2);
 })
 ```
 
@@ -71,6 +72,13 @@ This saves a list of Characters as an array:
     { .. },
     ..
 ]
+```
+
+To delete all associated entities:
+
+```rust
+// Despawn all character.
+world.despawn_bound_objects::<Character>()
 ```
 
 To save multiple types of objects in a batch, create a batch serialization type with the `batch!` macro.
@@ -105,7 +113,7 @@ This saves each type in a map entry:
 
 The crate provides various projection types for certain common use cases.
 
-For example, to serialize an `Handle` as its string path,
+For example, to serialize a `Handle` as its string path,
 you can use `#[serde(with = "PathHandle")]` like so
 
 ```rust
