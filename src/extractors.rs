@@ -1,7 +1,7 @@
 use std::{any::type_name, marker::PhantomData};
 
-use bevy_ecs::{system::Resource, world::FromWorld};
-use bevy_hierarchy::{BuildWorldChildren, Children};
+use bevy_ecs::{entity::Entity, system::Resource, world::{FromWorld, World}};
+use bevy_hierarchy::{BuildWorldChildren, Children, DespawnRecursiveExt};
 use serde::{de::{DeserializeOwned, SeqAccess, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
 use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, ZstInit, ENTITY, WORLD, WORLD_MUT};
 
@@ -108,24 +108,58 @@ impl<T> ZstInit for DefaultInit<T> {
     fn init() -> Self { Self(PhantomData) }
 }
 
-impl<T> Default for DefaultInit<T> {
-    fn default() -> Self { Self(PhantomData) }
+type DummyDeserializer = serde::de::value::BoolDeserializer<serde::de::value::Error>;
+
+/// Here to make `#[serde(default)]` work.
+impl<T: Component + FromWorld> Default for DefaultInit<T> {
+    fn default() -> Self { 
+        let _ = world_entity_scope_mut::<_, DummyDeserializer>(|world, entity| {
+            let item = T::from_world(world);
+            let Some(mut entity) = world.get_entity_mut(entity) else {
+                return;
+            };
+            entity.insert(item);
+        });
+        Self(PhantomData) 
+    }
 }
 
 impl<T: Component + FromWorld> BindProject for DefaultInit<T> {
     type To = Self;
 }
 
-impl<T: FromWorld> Serialize for DefaultInit<T> {
+impl<T: Component + FromWorld> Serialize for DefaultInit<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        world_entity_scope::<_, S>(
+            |world, entity| {
+                let Some(entity) = world.get_entity(entity) else {
+                    return Err(serde::ser::Error::custom(format!(
+                        "Entity missing: {entity:?}."
+                    )));
+                };
+                if !entity.contains::<T>() {
+                    return Err(serde::ser::Error::custom(format!(
+                        "Component missing: {}.", std::any::type_name::<T>()
+                    )));
+                };
+                Ok(())
+            }
+        )??;
         ().serialize(serializer)
     }
 }
 
-impl<'de, T: FromWorld> Deserialize<'de> for DefaultInit<T> {
+impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         <()>::deserialize(deserializer)?;
-        WORLD_MUT.with(|w|T::from_world(w));
+        world_entity_scope_mut::<_, D>(|world, entity| {
+            let item = T::from_world(world);
+            let Some(mut entity) = world.get_entity_mut(entity) else {
+                return Err(serde::de::Error::custom("Entity missing."));
+            };
+            entity.insert(item);
+            Ok(())
+        })??;
         Ok(Self(PhantomData))
     }
 }
@@ -140,6 +174,12 @@ impl<T> ZstInit for Root<T> {
 impl<'de, T: BevyObject> Deserialize<'de> for Root<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
         deserializer.deserialize_seq(Root(PhantomData))
+    }
+}
+
+fn safe_despawn(world: &mut World, entity: Entity) {
+    if let Some(entity) = world.get_entity_mut(entity) {
+        entity.despawn_recursive();
     }
 }
 
@@ -159,9 +199,16 @@ impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
                 }
                 entity
             });
-            if ENTITY.set(&entity, ||seq.next_element::<T::Object>())?.is_none() {
-                WORLD_MUT.with(|world| world.despawn(entity));
-                break
+            match ENTITY.set(&entity, ||seq.next_element::<T::Object>()) {
+                Err(err) => {
+                    WORLD_MUT.with(|world| safe_despawn(world, entity));
+                    return Err(err);
+                },
+                Ok(None) =>  {
+                    WORLD_MUT.with(|world| safe_despawn(world, entity));
+                    break;
+                },
+                Ok(Some(_)) => {}
             }
         }
         Ok(Root(PhantomData))
