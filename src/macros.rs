@@ -63,7 +63,7 @@ macro_rules! bind_object {
     }) => {
 
         #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
-        pub struct $main {
+        $vis struct $main {
             $(
                 $(#[$($attr)*])*
                 $field: <$ty as $crate::BindProject>::To,

@@ -108,7 +108,11 @@ impl<T> ZstInit for DefaultInit<T> {
     fn init() -> Self { Self(PhantomData) }
 }
 
-impl<T: Component + Serialize + DeserializeOwned + Default> BindProject for DefaultInit<T> {
+impl<T> Default for DefaultInit<T> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<T: Component + FromWorld> BindProject for DefaultInit<T> {
     type To = Self;
 }
 

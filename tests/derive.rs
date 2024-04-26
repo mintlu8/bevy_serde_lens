@@ -1,6 +1,7 @@
 use bevy_asset::{Asset, Handle};
+use bevy_ecs::{component::Component, query::With};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::asset::{PathHandle, UniqueHandle};
+use bevy_serde_lens::{asset::{PathHandle, UniqueHandle}, bind_object, DefaultInit};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, TypePath, Asset)]
@@ -20,6 +21,13 @@ struct MySprite (
     UniqueHandle<Image>,
 );
 
+#[derive(Debug, Component, Default)]
+struct A;
+
+bind_object!(struct B as (With<A>) {
+    #[serde(default)]
+    a: DefaultInit<A>,
+});
 
 #[test]
 pub fn test() {}
