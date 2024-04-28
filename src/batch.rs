@@ -1,5 +1,5 @@
 use std::{borrow::Cow, cell::RefCell, marker::PhantomData};
-use bevy_ecs::{entity::Entity, system::Resource, world::World};
+use bevy_ecs::{entity::Entity, query::{QueryData, WorldQuery}, system::Resource, world::World};
 use bevy_reflect::TypePath;
 use serde::{de::{DeserializeOwned, MapAccess, Visitor}, ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use crate::{BevyObject, Root, SerializeNonSend, SerializeResource, ZstInit, ENTITY, WORLD};
@@ -65,7 +65,9 @@ impl<'t, T: SerializeWorld> serde::Serialize for SerializeWorldLens<'t, T> {
     }
 }
 
-impl<T> SerializeWorld for T where T: BevyObject {
+type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
+
+impl<T> SerializeWorld for T where T: BevyObject, for<'t> Item<'t, T>: Serialize{
     type De = Root<T>;
 
     fn name() -> &'static str {
@@ -73,17 +75,23 @@ impl<T> SerializeWorld for T where T: BevyObject {
     }
 
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeSeq;
-        let mut query = world.query_filtered::<Entity, T::Filter>();
-        let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
-        for entity in query.iter(world) {
-            WORLD.set(world, || {
-                ENTITY.set(&entity, || {
-                    seq.serialize_element(&T::init())
-                })
-            })?;
-        };
-        seq.end()
+        if T::IS_QUERY {
+            let mut query = world.query_filtered::<T::Data, T::Filter>();
+            serializer.collect_seq(query.iter(world))
+        } else {
+            use serde::ser::SerializeSeq;
+            let mut query = world.query_filtered::<Entity, T::Filter>();
+            let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
+            for entity in query.iter(world) {
+                WORLD.set(world, || {
+                    ENTITY.set(&entity, || {
+                        seq.serialize_element(&T::init())
+                    })
+                })?;
+            };
+            seq.end()
+        }
+        
     }
 
     fn despawn(world: &mut World) {

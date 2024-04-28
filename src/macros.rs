@@ -73,6 +73,8 @@ macro_rules! bind_object {
         #[allow(unused)]
         const _: () = {
             impl $crate::BevyObject for $main {
+                const IS_QUERY: bool = false;
+                type Data = ();
                 type Filter = $filter;
                 type Object = $main;
 

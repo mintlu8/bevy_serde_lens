@@ -55,7 +55,7 @@ pub fn bench_ser_strings(c: &mut Criterion) {
 
 
 pub fn bench_de_strings(c: &mut Criterion) {
-    let strings = rand_strings(100);
+    let strings = rand_strings(1000);
     let mut world = World::new();
     let postcard = postcard::to_allocvec(&strings).unwrap();
     let json = serde_json::to_string(&strings).unwrap();
