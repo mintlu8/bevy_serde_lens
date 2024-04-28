@@ -95,6 +95,18 @@ macro_rules! bind_object {
     }
 }
 
+/// Bind a [`BevyObject`] to a [`QueryFilter`].
+/// 
+/// See [`bind_object!`] for details.
+/// 
+/// Unlike [`bind_object!`] this iterates a `Query` directly during serialization,
+/// which has better performance than `bind_object!`.
+/// However `Child` and `ChildVec` are not supported.
+/// 
+/// # Limitations
+/// 
+/// Due to the use of the `WorldQuery` macro, serde attributes are currently
+/// unused during serialization, which might not be ideal.
 #[macro_export]
 macro_rules! bind_query {
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
