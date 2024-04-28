@@ -73,17 +73,25 @@ impl<T> SerializeWorld for T where T: BevyObject {
     }
 
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeSeq;
-        let mut query = world.query_filtered::<Entity, T::Filter>();
-        let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
-        for entity in query.iter(world) {
+        if T::IS_QUERY {
+            let mut query = world.query_filtered::<T::Data, T::Filter>();
             WORLD.set(world, || {
-                ENTITY.set(&entity, || {
-                    seq.serialize_element(&T::init())
-                })
-            })?;
-        };
-        seq.end()
+                serializer.collect_seq(query.iter(world).map(T::into_ser))
+            })
+        } else {
+            use serde::ser::SerializeSeq;
+            let mut query = world.query_filtered::<Entity, T::Filter>();
+            let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
+            for entity in query.iter(world) {
+                WORLD.set(world, || {
+                    ENTITY.set(&entity, || {
+                        seq.serialize_element(&T::init())
+                    })
+                })?;
+            };
+            seq.end()
+        }
+        
     }
 
     fn despawn(world: &mut World) {

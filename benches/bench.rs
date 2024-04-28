@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 use bevy_app::App;
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::{Reflect, TypeRegistration, TypeRegistry, TypeRegistryArc};
-use bevy_scene::DynamicScene;
+use bevy_scene::{serde::SceneDeserializer, DynamicScene};
 use bevy_serde_lens::{ScopedDeserializeLens, WorldExtension};
 use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
@@ -55,11 +55,24 @@ pub fn bench_ser_strings(c: &mut Criterion) {
 
 
 pub fn bench_de_strings(c: &mut Criterion) {
-    let strings = rand_strings(100);
+    let strings = rand_strings(1000);
     let mut world = World::new();
     let postcard = postcard::to_allocvec(&strings).unwrap();
     let json = serde_json::to_string(&strings).unwrap();
     let ron = ron::to_string(&strings).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.add_registration(TypeRegistration::of::<Character>());
+
+    let mut world2 = App::new();
+    world2.world.spawn_batch(strings.iter().cloned());
+    world2.register_type::<Character>();
+    let mut registry2 = TypeRegistry::new();
+    registry2.add_registration(TypeRegistration::of::<Character>());
+    let registry2 = TypeRegistryArc {
+        internal: Arc::new(RwLock::new(registry2))
+    };
+    let ron2 = DynamicScene::from_world(&world2.world).serialize_ron(&registry2).unwrap();
+
     c.bench_function("postcard_strings_de", |b|{
         b.iter(||world.scoped_deserialize_lens(|| {
             let _ = postcard::from_bytes::<ScopedDeserializeLens<Character>>(&postcard).unwrap();
@@ -73,6 +86,13 @@ pub fn bench_de_strings(c: &mut Criterion) {
     c.bench_function("ron_strings_de", |b|{
         b.iter(||world.scoped_deserialize_lens(|| {
             let _ = ron::from_str::<ScopedDeserializeLens<Character>>(&ron).unwrap();
+        }));
+    });
+    c.bench_function("ron_dynamic_scene_strings_de", |b|{
+        b.iter(||world.scoped_deserialize_lens(|| {
+            use serde::de::DeserializeSeed;
+            let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
+            let _ = SceneDeserializer { type_registry: &registry }.deserialize(&mut deserializer);
         }));
     });
 }

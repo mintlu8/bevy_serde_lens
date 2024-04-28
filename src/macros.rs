@@ -63,6 +63,7 @@ macro_rules! bind_object {
     }) => {
 
         #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
+        $(#[$($head_attr)*])*
         $vis struct $main {
             $(
                 $(#[$($attr)*])*
@@ -73,11 +74,85 @@ macro_rules! bind_object {
         #[allow(unused)]
         const _: () = {
             impl $crate::BevyObject for $main {
+                const IS_QUERY: bool = false;
+                type Data = ();
                 type Filter = $filter;
                 type Object = $main;
 
                 fn name() -> &'static str {
                     Self::short_type_path()
+                }
+            }
+
+            impl $crate::ZstInit for $main {
+                fn init() -> Self {
+                    Self {
+                        $($field: $crate::ZstInit::init(),)*
+                    }
+                }
+            }
+        };
+    }
+}
+
+/// Bind a [`BevyObject`] to a [`QueryFilter`].
+/// 
+/// See [`bind_object!`] for details.
+/// 
+/// Unlike [`bind_object!`] this iterates a `Query` directly during serialization,
+/// and has better performance than `bind_object!`.
+/// However `Child` and `ChildVec` are not supported.
+#[macro_export]
+macro_rules! bind_query {
+    (@tuple $fst:ty) => { $fst };
+    (@tuple $fst:ty $(,$ty:ty)*) => { ($fst, $crate::bind_query!(@tuple $($ty),*))};
+    (@unroll $fst: ident) => { $fst };
+    (@unroll $fst: ident $(,$ident: ident)*) => { ($fst, $crate::bind_query!(@unroll $($ident),*))};
+
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
+        $crate::bind_query!(
+            $(#[$($head_attr)*])* $vis struct $main as $crate::With<$filter> {$($tt)*}
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
+        $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
+    }) => {
+        
+        #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
+        $(#[$($head_attr)*])*
+        $vis struct $main {
+            $(
+                $(#[$($attr)*])*
+                $field: <$ty as $crate::BindProject>::To,
+            )*
+        }
+
+        #[allow(unused)]
+        const _: () = {
+            impl $crate::BevyObject for $main {
+                const IS_QUERY: bool = true;
+                type Data = $crate::bind_query!(@tuple $(<$ty as $crate::BindProjectQuery>::Data),*);
+                type Filter = $filter;
+                type Object = $main;
+
+                fn name() -> &'static str {
+                    Self::short_type_path()
+                }
+
+                fn into_ser(query_data: $crate::Item<'_, Self>) -> impl $crate::serde::Serialize{
+                    #[derive($crate::serde::Serialize)]
+                    $(#[$($head_attr)*])*
+                    struct $main<'t> {
+                        $(
+                            $(#[$($attr)*])*
+                            $field: $crate::BindItem<'t, $ty>,
+                        )*
+                    }
+                    let $crate::bind_query!(@unroll $($field),*) = query_data;
+                    $main {
+                        $($field),*
+                    }
                 }
             }
 
