@@ -63,6 +63,7 @@ macro_rules! bind_object {
     }) => {
 
         #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
+        $(#[$($head_attr)*])*
         $vis struct $main {
             $(
                 $(#[$($attr)*])*
@@ -75,6 +76,60 @@ macro_rules! bind_object {
             impl $crate::BevyObject for $main {
                 const IS_QUERY: bool = false;
                 type Data = ();
+                type Filter = $filter;
+                type Object = $main;
+
+                fn name() -> &'static str {
+                    Self::short_type_path()
+                }
+            }
+
+            impl $crate::ZstInit for $main {
+                fn init() -> Self {
+                    Self {
+                        $($field: $crate::ZstInit::init(),)*
+                    }
+                }
+            }
+        };
+    }
+}
+
+#[macro_export]
+macro_rules! bind_query {
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
+        $crate::bind_query!(
+            $(#[$($head_attr)*])* $vis struct $main as $crate::With<$filter> {$($tt)*}
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
+        $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
+    }) => {
+        
+        #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
+        $(#[$($head_attr)*])*
+        $vis struct $main {
+            $(
+                $(#[$($attr)*])*
+                $field: <$ty as $crate::BindProject>::To,
+            )*
+        }
+
+        #[allow(unused)]
+        const _: () = {
+
+            #[derive($crate::QueryData)]
+            #[query_data(derive($crate::serde::Serialize))]
+            $vis struct __SerQuery {
+                $(
+                    $(#[$($attr)*])*
+                    $field: <$ty as $crate::BindProjectQuery>::Data,
+                )*
+            }
+            impl $crate::BevyObject for $main {
+                const IS_QUERY: bool = true;
+                type Data = __SerQuery;
                 type Filter = $filter;
                 type Object = $main;
 

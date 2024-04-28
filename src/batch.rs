@@ -77,7 +77,9 @@ impl<T> SerializeWorld for T where T: BevyObject, for<'t> Item<'t, T>: Serialize
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
         if T::IS_QUERY {
             let mut query = world.query_filtered::<T::Data, T::Filter>();
-            serializer.collect_seq(query.iter(world))
+            WORLD.set(world, || {
+                serializer.collect_seq(query.iter(world))
+            })
         } else {
             use serde::ser::SerializeSeq;
             let mut query = world.query_filtered::<Entity, T::Filter>();

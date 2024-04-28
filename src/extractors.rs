@@ -3,7 +3,7 @@ use std::{any::type_name, marker::PhantomData};
 use bevy_ecs::{entity::Entity, system::Resource, world::{FromWorld, World}};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnRecursiveExt};
 use serde::{de::{DeserializeOwned, SeqAccess, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
-use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, ZstInit, ENTITY, WORLD, WORLD_MUT};
+use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, BindProjectQuery, ZstInit, ENTITY, WORLD, WORLD_MUT};
 
 #[allow(unused)]
 use bevy_ecs::component::Component;
@@ -24,8 +24,10 @@ impl<T: BevyObject> Default for Maybe<T> {
 
 
 impl<T: BevyObject> BindProject for Maybe<T> {
-    const IS_QUERY: bool = true;
     type To = Self;
+}
+
+impl<T: BevyObject> BindProjectQuery for Maybe<T> {
     type Data = Option<T::Data>;
 }
 
@@ -62,9 +64,7 @@ impl<T: BevyObject> Default for Maybe<Child<T>> {
 }
 
 impl<T: BevyObject> BindProject for Maybe<Child<T>> {
-    const IS_QUERY: bool = false;
     type To = Self;
-    type Data = T::Data;
 }
 
 impl<T: BevyObject> Serialize for Maybe<Child<T>> {
@@ -129,9 +129,11 @@ impl<T: Component + FromWorld> Default for DefaultInit<T> {
 }
 
 impl<T: Component + FromWorld> BindProject for DefaultInit<T> {
-    const IS_QUERY: bool = true;
-    type Data = ();
     type To = Self;
+}
+
+impl<T: Component + FromWorld> BindProjectQuery for DefaultInit<T> {
+    type Data = ();
 }
 
 impl<T: Component + FromWorld> Serialize for DefaultInit<T> {
@@ -229,9 +231,11 @@ impl<T> ZstInit for SerializeComponent<T> {
 }
 
 impl<T: Component + Serialize + DeserializeOwned> BindProject for SerializeComponent<T> {
-    const IS_QUERY: bool = true;
-    type Data = &'static T;
     type To = Self;
+}
+
+impl<T: Component + Serialize + DeserializeOwned> BindProjectQuery for SerializeComponent<T> {
+    type Data = &'static T;
 }
 
 impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
@@ -342,8 +346,6 @@ impl<T> ZstInit for Child<T> {
 }
 
 impl<T: BevyObject> BindProject for Child<T> {
-    const IS_QUERY: bool = false;
-    type Data = ();
     type To = Self;
 }
 
@@ -459,7 +461,5 @@ impl<'de, T: BevyObject> Visitor<'de>  for ChildVec<T> {
 }
 
 impl<T: BevyObject> BindProject for ChildVec<T> {
-    const IS_QUERY: bool = true;
-    type Data = ();
     type To = Self;
 }

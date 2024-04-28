@@ -1,5 +1,4 @@
 #![doc = include_str!("../README.md")]
-use bevy_ecs::query::QueryData;
 use bevy_ecs::{component::Component, world::EntityWorldMut};
 use bevy_ecs::world::EntityRef;
 use serde::{Deserializer, Serializer};
@@ -23,6 +22,9 @@ pub use filter::EntityFilter;
 use bevy_asset::Handle;
 #[allow(unused)]
 use bevy_hierarchy::Children;
+
+#[allow(unused)]
+pub use bevy_ecs::query::QueryData;
 
 #[doc(hidden)]
 pub use bevy_ecs::{world::World, entity::Entity, query::With};
@@ -171,13 +173,18 @@ impl<T> BevyObject for T where T: Component + Serialize + DeserializeOwned + Typ
 
 /// Make a type usable in in the [`bind_object!`] macro.
 pub trait BindProject {
-    const IS_QUERY: bool;
-    type Data: QueryData;
     type To: Serialize + DeserializeOwned + ZstInit;
 }
 
+/// Make a type usable in in the [`bind_query!`] macro.
+pub trait BindProjectQuery {
+    type Data: QueryData;
+}
+
 impl<T> BindProject for T where T: BevyObject {
-    const IS_QUERY: bool = T::IS_QUERY;
-    type Data = T::Data;
     type To = T::Object;
+}
+
+impl<T> BindProjectQuery for T where T: BevyObject {
+    type Data = T::Data;
 }
