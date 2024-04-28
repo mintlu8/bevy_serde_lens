@@ -108,8 +108,8 @@ fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(f: impl FnOnce(&mut Worl
 
 /// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.
 /// 
-/// Due to the role of [`Default`] in `#[serde(skip)]`,
-/// `Default` should not be implemented on certain types.
+/// Due to the role of [`Default`] in `#[serde(default)]` and `#[serde(skip)]`,
+/// `Default` is not appropriate on certain types.
 pub trait ZstInit: Sized {
     fn init() -> Self;
 }

@@ -142,6 +142,7 @@ macro_rules! bind_query {
 
                 fn into_ser(query_data: $crate::Item<'_, Self>) -> impl $crate::serde::Serialize{
                     #[derive($crate::serde::Serialize)]
+                    $(#[$($head_attr)*])*
                     struct $main<'t> {
                         $(
                             $(#[$($attr)*])*

@@ -30,6 +30,10 @@ bind_object!(pub struct ABWithCD as (With<A>, With<B>, With<C>, With<D>) {
     b: B,
 });
 
+bind_query!(pub struct AQuery as A {
+    a: A
+});
+
 bind_query!(pub struct AbcdQuery as (With<A>, With<B>, With<C>, With<D>) {
     a: A,
     b: B,
