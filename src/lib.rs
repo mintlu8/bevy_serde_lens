@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+use bevy_ecs::query::{WorldQuery, QueryData};
 use bevy_ecs::{component::Component, world::EntityWorldMut};
 use bevy_ecs::world::EntityRef;
 use serde::{Deserializer, Serializer};
@@ -22,9 +23,6 @@ pub use filter::EntityFilter;
 use bevy_asset::Handle;
 #[allow(unused)]
 use bevy_hierarchy::Children;
-
-#[allow(unused)]
-pub use bevy_ecs::query::QueryData;
 
 #[doc(hidden)]
 pub use bevy_ecs::{world::World, entity::Entity, query::With};
@@ -116,6 +114,11 @@ pub trait ZstInit: Sized {
     fn init() -> Self;
 }
 
+#[doc(hidden)]
+pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
+#[doc(hidden)]
+pub type BindItem<'t, T> = <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
+
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///
 /// This means `world.save::<T>()` will try to serialize all entities that satisfies the filter.
@@ -130,7 +133,7 @@ pub trait BevyObject {
     const IS_QUERY: bool;
     /// If specified and `IS_QUERY` is set, 
     /// will use a query directly for serialization if is the root node.
-    /// The user is responsible for making sure this roundtrips 
+    /// The user is responsible to making sure this roundtrips 
     /// since this does not affect deserialization.
     type Data: QueryData;
     /// Checks which entities the filter applies to.
@@ -157,6 +160,10 @@ pub trait BevyObject {
     fn filter(entity: &EntityRef) -> bool {
         Self::Filter::filter(entity)
     }
+    
+    /// Convert `Data` to a serializable.
+    #[allow(unused_variables)]
+    fn into_ser(query_data: Item<'_, Self>) -> impl Serialize {}
 }
 
 impl<T> BevyObject for T where T: Component + Serialize + DeserializeOwned + TypePath {
@@ -168,6 +175,10 @@ impl<T> BevyObject for T where T: Component + Serialize + DeserializeOwned + Typ
 
     fn name() -> &'static str {
         T::short_type_path()
+    }
+
+    fn into_ser(query_data: Item<'_, Self>) -> impl Serialize {
+        query_data
     }
 }
 

@@ -100,15 +100,15 @@ macro_rules! bind_object {
 /// See [`bind_object!`] for details.
 /// 
 /// Unlike [`bind_object!`] this iterates a `Query` directly during serialization,
-/// which has better performance than `bind_object!`.
+/// and has better performance than `bind_object!`.
 /// However `Child` and `ChildVec` are not supported.
-/// 
-/// # Limitations
-/// 
-/// Due to the use of the `WorldQuery` macro, serde attributes are currently
-/// unused during serialization, which might not be ideal.
 #[macro_export]
 macro_rules! bind_query {
+    (@tuple $fst:ty) => { $fst };
+    (@tuple $fst:ty $(,$ty:ty)*) => { ($fst, $crate::bind_query!(@tuple $($ty),*))};
+    (@unroll $fst: ident) => { $fst };
+    (@unroll $fst: ident $(,$ident: ident)*) => { ($fst, $crate::bind_query!(@unroll $($ident),*))};
+
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
         $crate::bind_query!(
             $(#[$($head_attr)*])* $vis struct $main as $crate::With<$filter> {$($tt)*}
@@ -130,23 +130,28 @@ macro_rules! bind_query {
 
         #[allow(unused)]
         const _: () = {
-
-            #[derive($crate::QueryData)]
-            #[query_data(derive($crate::serde::Serialize))]
-            $vis struct __SerQuery {
-                $(
-                    $(#[$($attr)*])*
-                    $field: <$ty as $crate::BindProjectQuery>::Data,
-                )*
-            }
             impl $crate::BevyObject for $main {
                 const IS_QUERY: bool = true;
-                type Data = __SerQuery;
+                type Data = $crate::bind_query!(@tuple $(<$ty as $crate::BindProjectQuery>::Data),*);
                 type Filter = $filter;
                 type Object = $main;
 
                 fn name() -> &'static str {
                     Self::short_type_path()
+                }
+
+                fn into_ser(query_data: $crate::Item<'_, Self>) -> impl $crate::serde::Serialize{
+                    #[derive($crate::serde::Serialize)]
+                    struct $main<'t> {
+                        $(
+                            $(#[$($attr)*])*
+                            $field: $crate::BindItem<'t, $ty>,
+                        )*
+                    }
+                    let $crate::bind_query!(@unroll $($field),*) = query_data;
+                    $main {
+                        $($field),*
+                    }
                 }
             }
 

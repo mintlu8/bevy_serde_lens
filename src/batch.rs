@@ -1,5 +1,5 @@
 use std::{borrow::Cow, cell::RefCell, marker::PhantomData};
-use bevy_ecs::{entity::Entity, query::{QueryData, WorldQuery}, system::Resource, world::World};
+use bevy_ecs::{entity::Entity, system::Resource, world::World};
 use bevy_reflect::TypePath;
 use serde::{de::{DeserializeOwned, MapAccess, Visitor}, ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use crate::{BevyObject, Root, SerializeNonSend, SerializeResource, ZstInit, ENTITY, WORLD};
@@ -65,9 +65,7 @@ impl<'t, T: SerializeWorld> serde::Serialize for SerializeWorldLens<'t, T> {
     }
 }
 
-type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
-
-impl<T> SerializeWorld for T where T: BevyObject, for<'t> Item<'t, T>: Serialize{
+impl<T> SerializeWorld for T where T: BevyObject {
     type De = Root<T>;
 
     fn name() -> &'static str {
@@ -78,7 +76,7 @@ impl<T> SerializeWorld for T where T: BevyObject, for<'t> Item<'t, T>: Serialize
         if T::IS_QUERY {
             let mut query = world.query_filtered::<T::Data, T::Filter>();
             WORLD.set(world, || {
-                serializer.collect_seq(query.iter(world))
+                serializer.collect_seq(query.iter(world).map(T::into_ser))
             })
         } else {
             use serde::ser::SerializeSeq;
