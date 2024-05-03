@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use std::marker::PhantomData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::DeserializeSeed;
+use crate::eid::EID_MAP;
 use crate::typetagged::{TraitObject, DeserializeAnyFn, IntoTypeTagged, TypeTagServer, TYPETAG_SERVER};
 use crate::{BatchSerialization, WORLD_MUT};
 
@@ -56,6 +57,7 @@ impl WorldExtension for World {
     }
 
     fn load<'de, T: BatchSerialization, D: Deserializer<'de>>(&mut self, deserializer: D) -> Result<(), D::Error> {
+        EID_MAP.with(|m| m.borrow_mut().clear());
         self.init_resource::<TypeTagServer>();
         self.resource_scope::<TypeTagServer, _>(|world, server| {
             TYPETAG_SERVER.set(&server, || {
@@ -142,6 +144,7 @@ impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T
     type Value = ();
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+        EID_MAP.with(|m| m.borrow_mut().clear());
         self.0.load::<T, D>(deserializer)
     }
 }
@@ -153,6 +156,7 @@ pub struct ScopedDeserializeLens<S: BatchSerialization>(PhantomData<S>);
 
 impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+        EID_MAP.with(|m| m.borrow_mut().clear());
         T::De::deserialize(deserializer)?;
         Ok(Self(PhantomData))
     }

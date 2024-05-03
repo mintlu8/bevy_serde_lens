@@ -16,6 +16,8 @@ pub mod asset;
 pub mod typetagged;
 pub mod entity;
 mod filter;
+mod eid;
+pub use eid::{EntityId, Parented};
 
 pub use filter::EntityFilter;
 

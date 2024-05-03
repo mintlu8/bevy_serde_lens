@@ -14,7 +14,7 @@ use bevy_ecs::component::Component;
 /// so you can use `#[serde(skip_deserializing_if("Option::is_none"))]`.
 pub struct Maybe<T>(PhantomData<T>);
 
-impl<T: BevyObject> ZstInit for Maybe<T> {
+impl<T> ZstInit for Maybe<T> {
     fn init() -> Self { Self(PhantomData) }
 }
 
@@ -53,10 +53,6 @@ impl<'de, T: BevyObject> Deserialize<'de> for Maybe<T> {
         <Option<T::Object>>::deserialize(deserializer)?;
         Ok(Self(PhantomData))
     }
-}
-
-impl<T: BevyObject> ZstInit for Maybe<Child<T>> {
-    fn init() -> Self { Self(PhantomData) }
 }
 
 impl<T: BevyObject> Default for Maybe<Child<T>> {

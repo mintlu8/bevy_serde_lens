@@ -26,7 +26,7 @@ impl<B: BevyObject> EntityPtr<B> {
         EntityPtr::ref_cast(item).serialize(serializer)
     }
 
-    /// Serialize with [`EntityPointer`].
+    /// Deserialize with [`EntityPointer`].
     pub fn deserialize<'de, T: EntityPointer<B>, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
         <EntityPtr<B, T>>::deserialize(deserializer).map(|x| x.0)
     }
