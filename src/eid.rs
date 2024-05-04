@@ -63,7 +63,9 @@ impl BindProjectQuery for EntityId {
     type Data = Entity;
 }
 
-/// Parent this entity to an entity via previously serialized [`EntityId`].
+/// Parent this entity to an entity via its previously serialized [`EntityId`].
+/// 
+/// Due to implementation reasons, this is currently not validated on the serialization step.
 pub struct Parented;
 
 impl Serialize for Parented {
