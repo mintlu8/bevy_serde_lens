@@ -77,8 +77,7 @@ pub fn bench_de_strings(c: &mut Criterion) {
     c.bench_function("postcard_strings_de", |b| {
         b.iter(|| {
             world.deserialize_scope(|| {
-                let _ =
-                    postcard::from_bytes::<InWorld<Character>>(&postcard).unwrap();
+                let _ = postcard::from_bytes::<InWorld<Character>>(&postcard).unwrap();
             })
         });
     });

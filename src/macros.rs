@@ -58,6 +58,16 @@ macro_rules! bind_object {
         );
     };
 
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident {
+        $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
+    }) => {
+        $crate::bind_object!(
+            $(#[$($head_attr)*])* $vis struct $main as $crate::bind_query!(@filter $($ty),*) {
+                $($(#[$($attr)*])* $field: $ty),*
+            }
+        );
+    };
+
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
         $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
     }) => {
@@ -108,10 +118,22 @@ macro_rules! bind_query {
     (@tuple $fst:ty $(,$ty:ty)*) => { ($fst, $crate::bind_query!(@tuple $($ty),*))};
     (@unroll $fst: ident) => { $fst };
     (@unroll $fst: ident $(,$ident: ident)*) => { ($fst, $crate::bind_query!(@unroll $($ident),*))};
+    (@filter $fst: ty) => { <$fst as $crate::BindProject>::Filter };
+    (@filter $fst: ty $(,$ident: ty)*) => { (<$fst as $crate::BindProject>::Filter, $crate::bind_query!(@filter $($ident),*))};
 
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ident {$($tt:tt)*}) => {
         $crate::bind_query!(
             $(#[$($head_attr)*])* $vis struct $main as $crate::With<$filter> {$($tt)*}
+        );
+    };
+
+    ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident {
+        $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
+    }) => {
+        $crate::bind_query!(
+            $(#[$($head_attr)*])* $vis struct $main as $crate::bind_query!(@filter $($ty),*) {
+                $($(#[$($attr)*])* $field: $ty),*
+            }
         );
     };
 

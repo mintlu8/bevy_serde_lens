@@ -239,7 +239,12 @@ where
         M: MapAccess<'de>,
     {
         while let Some(key) = map.next_key::<Cow<str>>()? {
-            Self::deserialize_map(&key, &mut map)?
+            if key.as_ref() == A::name() {
+                map.next_value::<A::De>()?;
+            } else {
+                B::deserialize_map(key.as_ref(), &mut map)?;
+            }
+            //Self::deserialize_map(&key, &mut map)?
         }
         Ok(Join(PhantomData))
     }

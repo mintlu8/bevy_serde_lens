@@ -109,6 +109,15 @@ This saves each type in a map entry:
 }
 ```
 
+## Archetypal Binding
+
+`bind_query!` can be used to speed up serialization.
+By default `bind_object` queries the world hierarchically as a tree,
+This has roughly similar performance to building a `DynamicScene`
+then serializing it (with `ron`).
+If your binding has no `Child` or `ChildVec`, you can use `bind_query!`
+which serializes a `Query` directly.
+
 ## Projection Types
 
 The crate provides various projection types for certain common use cases.
@@ -132,6 +141,19 @@ struct MySprite {
     image: PathHandle<Image>
 }
 ```
+
+## EntityId
+
+We provide a framework to serialize `Entity`, `Parent` etc. Before we start keep in mind
+this only works with a serializer that can preserve the order of maps.
+In `serde_json` for instance, you must enable feature `preserve_order` to use these features.
+
+When using `bind_object!` or `bind_query!`, you can specify the `EntityId` component.
+This registers the `Entity` id of this entity for future use in the same batch.
+
+**After** the entry, future entities can use `Parented` to parent to this entity,
+or use `EntityPtr` to serialize an `Entity` that references this entity.
+`Parented` can be used in `bind_query` which might made it more performant than `ChildVec`.
 
 ## TypeTag
 

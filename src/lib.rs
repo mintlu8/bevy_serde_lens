@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
-use bevy_ecs::query::{QueryData, WorldQuery};
+use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
 use bevy_ecs::world::EntityRef;
 use bevy_ecs::{component::Component, world::EntityWorldMut};
 #[allow(unused)]
-use serde::{de::DeserializeOwned, Serialize, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 mod extractors;
 pub use extractors::*;
@@ -48,9 +48,9 @@ scoped_tls_hkt::scoped_thread_local!(
 );
 
 /// Run a function on a read only reference to [`World`].
-/// 
+///
 /// # Errors
-/// 
+///
 /// * If used outside of a [`Serialize`] implementation.
 /// * If used outside `bevy_serde_lens`.
 pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
@@ -66,7 +66,7 @@ pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S:
 /// Run a function on a mutable only reference to [`World`].
 ///
 /// # Errors
-/// 
+///
 /// * If used outside of a [`Deserialize`] implementation.
 /// * If used outside `bevy_serde_lens`.
 /// * If used in a nested manner, as that is a violation to rust's aliasing rule.
@@ -201,6 +201,7 @@ where
 /// Make a type usable in in the [`bind_object!`] macro.
 pub trait BindProject {
     type To: Serialize + DeserializeOwned + ZstInit;
+    type Filter: QueryFilter;
 }
 
 /// Make a type usable in in the [`bind_query!`] macro.
@@ -213,6 +214,8 @@ where
     T: BevyObject,
 {
     type To = T::Object;
+    /// Optionally used in the macro if `Filter` is not specified.
+    type Filter = T::Filter;
 }
 
 impl<T> BindProjectQuery for T

@@ -1,9 +1,7 @@
 #![allow(clippy::upper_case_acronyms)]
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{
-    batch, bind_object, bind_query, InWorld, SerializeResource, WorldExtension,
-};
+use bevy_serde_lens::{batch, bind_object, bind_query, InWorld, SerializeResource, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

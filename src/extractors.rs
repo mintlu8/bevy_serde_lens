@@ -6,6 +6,7 @@ use crate::{
 };
 use bevy_ecs::{
     entity::Entity,
+    query::With,
     system::Resource,
     world::{FromWorld, World},
 };
@@ -38,6 +39,7 @@ impl<T: BevyObject> Default for Maybe<T> {
 
 impl<T: BevyObject> BindProject for Maybe<T> {
     type To = Self;
+    type Filter = ();
 }
 
 impl<T: BevyObject> BindProjectQuery for Maybe<T> {
@@ -78,6 +80,7 @@ impl<T: BevyObject> Default for Maybe<Child<T>> {
 
 impl<T: BevyObject> BindProject for Maybe<Child<T>> {
     type To = Self;
+    type Filter = ();
 }
 
 impl<T: BevyObject> Serialize for Maybe<Child<T>> {
@@ -144,6 +147,7 @@ impl<T: Component + FromWorld> Default for DefaultInit<T> {
 
 impl<T: Component + FromWorld> BindProject for DefaultInit<T> {
     type To = Self;
+    type Filter = With<T>;
 }
 
 impl<T: Component + FromWorld> BindProjectQuery for DefaultInit<T> {
@@ -261,6 +265,7 @@ impl<T> ZstInit for SerializeComponent<T> {
 
 impl<T: Component + Serialize + DeserializeOwned> BindProject for SerializeComponent<T> {
     type To = Self;
+    type Filter = With<T>;
 }
 
 impl<T: Component + Serialize + DeserializeOwned> BindProjectQuery for SerializeComponent<T> {
@@ -384,6 +389,7 @@ impl<T> ZstInit for Child<T> {
 
 impl<T: BevyObject> BindProject for Child<T> {
     type To = Self;
+    type Filter = ();
 }
 
 impl<T: BevyObject> Serialize for Child<T> {
@@ -512,4 +518,5 @@ impl<'de, T: BevyObject> Visitor<'de> for ChildVec<T> {
 
 impl<T: BevyObject> BindProject for ChildVec<T> {
     type To = Self;
+    type Filter = ();
 }
