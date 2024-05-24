@@ -1,7 +1,7 @@
 
 [package]
 name = "bevy_serde_lens"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -43,6 +43,7 @@ bevy_scene = "0.13.2"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"
+rand_derive2 = "0.1.21"
 ron = "0.8.1"
 serde_json = { version = "1.0.114", features = ["preserve_order"] }
 

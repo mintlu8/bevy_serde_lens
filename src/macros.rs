@@ -90,6 +90,7 @@ macro_rules! bind_object {
                 type Object = $main;
 
                 fn name() -> &'static str {
+                    use $crate::TypePath;
                     Self::short_type_path()
                 }
             }
@@ -159,6 +160,7 @@ macro_rules! bind_query {
                 type Object = $main;
 
                 fn name() -> &'static str {
+                    use $crate::TypePath;
                     Self::short_type_path()
                 }
 

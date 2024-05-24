@@ -315,6 +315,7 @@ impl OptionEntityPtr {
 }
 
 pub(crate) mod query {
+    #[allow(unused)]
     use super::EID_MAP;
     use bevy_ecs::{entity::Entity, query::QueryData};
     use bevy_hierarchy::Parent;
