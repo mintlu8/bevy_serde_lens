@@ -1,5 +1,5 @@
+use bevy_ecs::query::{Or, QueryFilter, With, Without};
 use bevy_ecs::{component::Component, world::EntityRef};
-use bevy_ecs::query::{QueryFilter, With, Without, Or};
 
 /// A subset of [`QueryFilter`] that works on [`EntityRef`].
 /// Supports tuples, [`With`], [`Without`] and [`Or`].
@@ -19,13 +19,19 @@ impl EntityFilter for Or<()> {
     }
 }
 
-impl<T> EntityFilter for With<T> where T: Component{
+impl<T> EntityFilter for With<T>
+where
+    T: Component,
+{
     fn filter(entity: &EntityRef) -> bool {
         entity.contains::<T>()
     }
 }
 
-impl<T> EntityFilter for Without<T> where T: Component{
+impl<T> EntityFilter for Without<T>
+where
+    T: Component,
+{
     fn filter(entity: &EntityRef) -> bool {
         !entity.contains::<T>()
     }
@@ -49,8 +55,4 @@ macro_rules! impl_tuple {
     };
 }
 
-impl_tuple!(
-    A, B, C, D, E,
-    F, G, H, I, J,
-    K, L, M, N, O
-);
+impl_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
