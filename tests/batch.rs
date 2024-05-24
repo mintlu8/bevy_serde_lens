@@ -2,7 +2,7 @@
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
-    batch, bind_object, bind_query, ScopedDeserializeLens, SerializeResource, WorldExtension,
+    batch, bind_object, bind_query, InWorld, SerializeResource, WorldExtension,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -174,8 +174,8 @@ pub fn test() {
 
     world.despawn_bound_objects::<ABCDR>();
 
-    world.scoped_deserialize_lens(|| {
-        let _: ScopedDeserializeLens<ABCDR> = serde_json::from_value(value).unwrap();
+    world.deserialize_scope(|| {
+        let _: InWorld<ABCDR> = serde_json::from_value(value).unwrap();
     });
 
     assert_eq!(world.entities().len(), 10);

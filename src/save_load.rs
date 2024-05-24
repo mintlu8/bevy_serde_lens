@@ -1,4 +1,4 @@
-use crate::eid::EID_MAP;
+use crate::entity::EID_MAP;
 use crate::typetagged::{
     DeserializeAnyFn, IntoTypeTagged, TraitObject, TypeTagServer, TYPETAG_SERVER,
 };
@@ -42,7 +42,7 @@ pub trait WorldExtension {
     /// Create a [`Deserialize`] scope from a [`World`].
     ///
     /// [`ScopedDeserializeLens`] can be used inside the scope.
-    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T;
+    fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T;
     /// Despawn all entities in a [`BatchSerialization`] type recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);
     /// Register a type that can be deserialized dynamically.
@@ -90,7 +90,7 @@ impl WorldExtension for World {
         DeserializeLens(self, PhantomData)
     }
 
-    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T {
+    fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T {
         WORLD_MUT.set(self, f)
     }
 
@@ -132,8 +132,8 @@ impl WorldExtension for App {
         self.world.deserialize_lens()
     }
 
-    fn scoped_deserialize_lens<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        self.world.scoped_deserialize_lens(f)
+    fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T {
+        self.world.deserialize_scope(f)
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self) {
@@ -178,10 +178,10 @@ impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T
 
 /// A [`Deserialize`] type from a [`BatchSerialization`] type.
 ///
-/// Usable only in the `scoped_deserialize_lens` function's scope.
-pub struct ScopedDeserializeLens<S: BatchSerialization>(PhantomData<S>);
+/// Usable only in the `deserialize_scope` function's scope.
+pub struct InWorld<S: BatchSerialization>(PhantomData<S>);
 
-impl<'de, T: BatchSerialization> Deserialize<'de> for ScopedDeserializeLens<T> {
+impl<'de, T: BatchSerialization> Deserialize<'de> for InWorld<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

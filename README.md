@@ -14,7 +14,7 @@ Stateful, structural and human-readable serialization crate for the bevy engine.
 * Extremely lightweight and modular. No systems, no plugins.
 * Supports every serde format using familiar syntax.
 * Serialize `Handle`s and provide a generalized data interning interface.
-* Serialize stored `Entity`s like smart pointers.
+* Serialize stored `Entity`s in a safe manner.
 
 ## Getting Started
 
@@ -57,10 +57,10 @@ You can create a `SerializeLens`:
 let lens = world.serialize_lens::<Character>();
 serde_json::to_string(&lens);
 // This signature works because the world is stored as a thread local
-world.scoped_deserialize_lens(|| {
+world.deserialize_scope(|| {
     // Return object doesn't matter, data is stored in the world
-    let _: ScopedDeserializeLens<Character> = serde_json::from_str(&my_string);
-    let _: ScopedDeserializeLens<Monster> = serde_json::from_str(&my_string2);
+    let _ = serde_json::from_str::<InWorld<Character>>(&my_string);
+    let _ = serde_json::from_str::<InWorld<Monster>>(&my_string2);
 })
 ```
 

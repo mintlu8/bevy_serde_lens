@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::{Reflect, TypeRegistration, TypeRegistry, TypeRegistryArc};
 use bevy_scene::{serde::SceneDeserializer, DynamicScene};
-use bevy_serde_lens::{ScopedDeserializeLens, WorldExtension};
+use bevy_serde_lens::{InWorld, WorldExtension};
 use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -76,29 +76,29 @@ pub fn bench_de_strings(c: &mut Criterion) {
 
     c.bench_function("postcard_strings_de", |b| {
         b.iter(|| {
-            world.scoped_deserialize_lens(|| {
+            world.deserialize_scope(|| {
                 let _ =
-                    postcard::from_bytes::<ScopedDeserializeLens<Character>>(&postcard).unwrap();
+                    postcard::from_bytes::<InWorld<Character>>(&postcard).unwrap();
             })
         });
     });
     c.bench_function("json_strings_de", |b| {
         b.iter(|| {
-            world.scoped_deserialize_lens(|| {
-                let _ = serde_json::from_str::<ScopedDeserializeLens<Character>>(&json).unwrap();
+            world.deserialize_scope(|| {
+                let _ = serde_json::from_str::<InWorld<Character>>(&json).unwrap();
             })
         });
     });
     c.bench_function("ron_strings_de", |b| {
         b.iter(|| {
-            world.scoped_deserialize_lens(|| {
-                let _ = ron::from_str::<ScopedDeserializeLens<Character>>(&ron).unwrap();
+            world.deserialize_scope(|| {
+                let _ = ron::from_str::<InWorld<Character>>(&ron).unwrap();
             })
         });
     });
     c.bench_function("ron_dynamic_scene_strings_de", |b| {
         b.iter(|| {
-            world.scoped_deserialize_lens(|| {
+            world.deserialize_scope(|| {
                 use serde::de::DeserializeSeed;
                 let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
                 let _ = SceneDeserializer {

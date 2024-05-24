@@ -2,22 +2,22 @@
 use bevy_ecs::query::{QueryData, WorldQuery};
 use bevy_ecs::world::EntityRef;
 use bevy_ecs::{component::Component, world::EntityWorldMut};
-use serde::{de::DeserializeOwned, Serialize};
+#[allow(unused)]
+use serde::{de::DeserializeOwned, Serialize, Deserialize};
 use serde::{Deserializer, Serializer};
 mod extractors;
 pub use extractors::*;
 mod batch;
 mod save_load;
 pub use batch::{BatchSerialization, Join, SerializeWorld};
-pub use save_load::{DeserializeLens, ScopedDeserializeLens, SerializeLens, WorldExtension};
+pub use save_load::{DeserializeLens, InWorld, SerializeLens, WorldExtension};
 pub mod asset;
-mod eid;
 pub mod entity;
 mod filter;
 pub mod interning;
 mod macros;
 pub mod typetagged;
-pub use eid::{EntityId, Parented};
+pub use entity::{EntityId, Parented};
 
 pub use filter::EntityFilter;
 
@@ -48,8 +48,11 @@ scoped_tls_hkt::scoped_thread_local!(
 );
 
 /// Run a function on a read only reference to [`World`].
-///
-/// Can only be used in [`Serialize`] implementations.
+/// 
+/// # Errors
+/// 
+/// * If used outside of a [`Serialize`] implementation.
+/// * If used outside `bevy_serde_lens`.
 pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
     if !WORLD.is_set() {
         Err(serde::ser::Error::custom(
@@ -62,11 +65,11 @@ pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S:
 
 /// Run a function on a mutable only reference to [`World`].
 ///
-/// Can only be used in [`Deserialize`](serde::Deserialize) implementations.
-///
-/// # Panics
-///
-/// If used in a nested manner, as that is a violation to rust's aliasing rule.
+/// # Errors
+/// 
+/// * If used outside of a [`Deserialize`] implementation.
+/// * If used outside `bevy_serde_lens`.
+/// * If used in a nested manner, as that is a violation to rust's aliasing rule.
 ///
 /// ```
 /// with_world_mut(|| {
