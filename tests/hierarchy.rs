@@ -50,31 +50,32 @@ bind_object!(pub struct SerializeAbility as Ability {
 pub fn test() {
     let mut world = World::new();
     world.spawn(Unit("Bob".to_owned()));
-    world.spawn((
-        Unit("Eric".to_owned()),
-        Weapon("Sword".to_owned()),
-    )).with_children(|b| {
-        b.spawn(Potion("Hp Potion".to_owned()));
-        b.spawn(Potion("Mp Potion".to_owned()));
-        b.spawn(Ability("Thrust".to_owned())).with_children(|b| {
-            b.spawn(Effect("Defense Break".to_owned()));
+    world
+        .spawn((Unit("Eric".to_owned()), Weapon("Sword".to_owned())))
+        .with_children(|b| {
+            b.spawn(Potion("Hp Potion".to_owned()));
+            b.spawn(Potion("Mp Potion".to_owned()));
+            b.spawn(Ability("Thrust".to_owned())).with_children(|b| {
+                b.spawn(Effect("Defense Break".to_owned()));
+            });
         });
-    });
-    world.spawn((
-        Unit("Lana".to_owned()),
-        Weapon("Axe".to_owned()),
-        Armor("Robe".to_owned()),
-    )).with_children(|b| {
-        b.spawn(Potion("Fire Potion".to_owned()));
-        b.spawn(Ability("Regenerate".to_owned())).with_children(|b| {
-            b.spawn(Effect("Hp Restore".to_owned()));
-            b.spawn(Effect("Mp Restore".to_owned()));
+    world
+        .spawn((
+            Unit("Lana".to_owned()),
+            Weapon("Axe".to_owned()),
+            Armor("Robe".to_owned()),
+        ))
+        .with_children(|b| {
+            b.spawn(Potion("Fire Potion".to_owned()));
+            b.spawn(Ability("Regenerate".to_owned()))
+                .with_children(|b| {
+                    b.spawn(Effect("Hp Restore".to_owned()));
+                    b.spawn(Effect("Mp Restore".to_owned()));
+                });
+            b.spawn(Ability("Fire Ball".to_owned())).with_children(|b| {
+                b.spawn(Effect("Burn Damage".to_owned()));
+            });
         });
-        b.spawn(Ability("Fire Ball".to_owned())).with_children(|b| {
-            b.spawn(Effect("Burn Damage".to_owned()));
-        });
-    });
-
 
     let validation = json!([
         {
@@ -126,7 +127,9 @@ pub fn test() {
         },
     ]);
 
-    let value = world.save::<SerializeUnit, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<SerializeUnit, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
 
     world.despawn_bound_objects::<SerializeUnit>();
@@ -134,7 +137,8 @@ pub fn test() {
 
     world.load::<SerializeUnit, _>(&value).unwrap();
 
-    let value = world.save::<SerializeUnit, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<SerializeUnit, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
-
 }

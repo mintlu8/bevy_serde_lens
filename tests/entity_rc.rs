@@ -1,13 +1,18 @@
 // Shows how to create an `Rc` of entity relationship.
 use std::sync::Arc;
 
-use bevy_ecs::{component::Component, entity::Entity, system::{Commands, Query, RunSystemOnce}, world::{EntityWorldMut, World}};
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    system::{Commands, Query, RunSystemOnce},
+    world::{EntityWorldMut, World},
+};
 use bevy_hierarchy::DespawnRecursiveExt;
 use bevy_reflect::TypePath;
+use bevy_serde_lens::entity::EntityPtr;
 use bevy_serde_lens::{entity::EntityPointer, BevyObject, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use bevy_serde_lens::entity::EntityPtr;
 
 #[derive(Debug, Component, Clone)]
 pub struct EntityRc {
@@ -53,10 +58,7 @@ impl<B: BevyObject> EntityPointer<B> for EntityRc {
     }
 }
 
-pub fn drop_entity_pointee(
-    mut commands: Commands,
-    query: Query<(Entity, &EntityRcDrop)>
-) {
+pub fn drop_entity_pointee(mut commands: Commands, query: Query<(Entity, &EntityRcDrop)>) {
     for (entity, pointee) in query.iter() {
         if Arc::strong_count(&pointee.0) < 2 {
             commands.entity(entity).despawn_recursive();
@@ -70,7 +72,6 @@ pub struct EntityNumber {
     entity: Entity,
     number: i32,
 }
-
 
 #[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 pub struct EntityNumberRc {
@@ -90,9 +91,9 @@ pub fn test1() {
     let number = world.spawn(Number { number: 69 }).id();
     world.spawn(EntityNumber {
         entity: number,
-        number: 420
+        number: 420,
     });
-    
+
     let validation = json!([
         {
             "entity": {
@@ -102,7 +103,9 @@ pub fn test1() {
         },
     ]);
 
-    let value = world.save::<EntityNumber, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<EntityNumber, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
 
     world.despawn_bound_objects::<EntityNumber>();
@@ -112,7 +115,9 @@ pub fn test1() {
     world.load::<EntityNumber, _>(value).unwrap();
     assert_eq!(world.entities().len(), 3);
 
-    let value = world.save::<EntityNumber, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<EntityNumber, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
 }
 
@@ -122,9 +127,9 @@ pub fn test2() {
     let number = world.spawn(Number { number: 69 }).make_rc();
     world.spawn(EntityNumberRc {
         entity: number,
-        number: 420
+        number: 420,
     });
-    
+
     let validation = json!([
         {
             "entity": {
@@ -134,7 +139,9 @@ pub fn test2() {
         },
     ]);
 
-    let value = world.save::<EntityNumberRc, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<EntityNumberRc, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
 
     world.despawn_bound_objects::<EntityNumberRc>();
@@ -148,6 +155,8 @@ pub fn test2() {
     world.load::<EntityNumberRc, _>(value).unwrap();
     assert_eq!(world.entities().len(), 2);
 
-    let value = world.save::<EntityNumberRc, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<EntityNumberRc, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, validation);
 }

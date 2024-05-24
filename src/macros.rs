@@ -1,5 +1,5 @@
 #[allow(unused)]
-use crate::{Component, BevyObject, Maybe, TypePath, SerializeWorld};
+use crate::{BevyObject, Component, Maybe, SerializeWorld, TypePath};
 #[allow(unused)]
 use bevy_ecs::query::QueryFilter;
 /// Bind a [`BevyObject`] to a [`QueryFilter`].
@@ -39,15 +39,15 @@ use bevy_ecs::query::QueryFilter;
 /// This can be a bit footgun heavy so reading the serde
 /// documentation is recommended.
 ///
-/// For example 
+/// For example
 /// ```
 /// #[serde(default)]
 /// ```
-/// can be used to skip a [`Maybe`] field if None. 
+/// can be used to skip a [`Maybe`] field if None.
 /// Keep in mind this will break non-self-describing formats.
-/// 
+///
 /// # Rename
-/// 
+///
 /// The type derives [`TypePath`] and uses `short_type_path` as its name,
 /// use `type_path` attributes to rename the type if desired.
 #[macro_export]
@@ -96,9 +96,9 @@ macro_rules! bind_object {
 }
 
 /// Bind a [`BevyObject`] to a [`QueryFilter`].
-/// 
+///
 /// See [`bind_object!`] for details.
-/// 
+///
 /// Unlike [`bind_object!`] this iterates a `Query` directly during serialization,
 /// and has better performance than `bind_object!`.
 /// However `Child` and `ChildVec` are not supported.
@@ -118,7 +118,7 @@ macro_rules! bind_query {
     ($(#[$($head_attr: tt)*])* $vis: vis struct $main: ident as $filter: ty  {
         $($(#[$($attr: tt)*])* $field: ident: $ty: ty),* $(,)?
     }) => {
-        
+
         #[derive($crate::serde::Serialize, $crate::serde::Deserialize, $crate::TypePath)]
         $(#[$($head_attr)*])*
         $vis struct $main {

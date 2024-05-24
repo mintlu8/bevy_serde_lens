@@ -1,8 +1,10 @@
 #![allow(clippy::upper_case_acronyms)]
 use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{batch, bind_object, bind_query, ScopedDeserializeLens, SerializeResource, WorldExtension};
-use serde::{Serialize, Deserialize};
+use bevy_serde_lens::{
+    batch, bind_object, bind_query, ScopedDeserializeLens, SerializeResource, WorldExtension,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Serialize, Deserialize, Component, TypePath)]
@@ -64,57 +66,53 @@ pub fn test() {
 
     let value = world.save::<A, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!([
-        "b",
-        "e",
-        "v",
-        "y"
-    ]));
+    assert_eq!(value, json!(["b", "e", "v", "y"]));
 
     let value = world.save::<B, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!([
-        3.0,
-        0.5
-    ]));
+    assert_eq!(value, json!([3.0, 0.5]));
 
     let value = world.save::<C, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!([
-        "Ferris",
-        "Crab"
-    ]));
+    assert_eq!(value, json!(["Ferris", "Crab"]));
 
     let value = world.save::<D, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!([
-        69,
-        420
-    ]));
+    assert_eq!(value, json!([69, 420]));
 
     let value = world.save::<AB, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!({
-        "A": ["b", "e", "v", "y"],
-        "B": [3.0, 0.5]
-    }));
-
+    assert_eq!(
+        value,
+        json!({
+            "A": ["b", "e", "v", "y"],
+            "B": [3.0, 0.5]
+        })
+    );
 
     let value = world.save::<BD, _>(serde_json::value::Serializer).unwrap();
 
-    assert_eq!(value, json!({
-        "B": [3.0, 0.5],
-        "D": [69, 420],
-    }));
+    assert_eq!(
+        value,
+        json!({
+            "B": [3.0, 0.5],
+            "D": [69, 420],
+        })
+    );
 
-    let value = world.save::<ABCD, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<ABCD, _>(serde_json::value::Serializer)
+        .unwrap();
 
-    assert_eq!(value, json!({
-        "A": ["b", "e", "v", "y"],
-        "B": [3.0, 0.5],
-        "C": ["Ferris", "Crab"],
-        "D": [69, 420],
-    }));
+    assert_eq!(
+        value,
+        json!({
+            "A": ["b", "e", "v", "y"],
+            "B": [3.0, 0.5],
+            "C": ["Ferris", "Crab"],
+            "D": [69, 420],
+        })
+    );
 
     world.despawn_bound_objects::<AB>();
     assert_eq!(world.entities().len(), 4);
@@ -123,17 +121,22 @@ pub fn test() {
     assert_eq!(world.entities().len(), 0);
 
     world.load::<ABCD, _>(&value).unwrap();
-    
+
     assert_eq!(world.entities().len(), 10);
 
-    let value = world.save::<ABCD, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<ABCD, _>(serde_json::value::Serializer)
+        .unwrap();
 
-    assert_eq!(value, json!({
-        "A": ["b", "e", "v", "y"],
-        "B": [3.0, 0.5],
-        "C": ["Ferris", "Crab"],
-        "D": [69, 420],
-    }));
+    assert_eq!(
+        value,
+        json!({
+            "A": ["b", "e", "v", "y"],
+            "B": [3.0, 0.5],
+            "C": ["Ferris", "Crab"],
+            "D": [69, 420],
+        })
+    );
 
     world.despawn_bound_objects::<ABCD>();
     assert_eq!(world.entities().len(), 0);
@@ -146,16 +149,19 @@ pub fn test() {
 
     let value = serde_json::to_value(lens).unwrap();
 
-    assert_eq!(value, json!({
-        "A": ["b", "e", "v", "y"],
-        "B": [3.0, 0.5],
-        "C": ["Ferris", "Crab"],
-        "D": [69, 420],
-        "R": 12,
-    }));
+    assert_eq!(
+        value,
+        json!({
+            "A": ["b", "e", "v", "y"],
+            "B": [3.0, 0.5],
+            "C": ["Ferris", "Crab"],
+            "D": [69, 420],
+            "R": 12,
+        })
+    );
 
     world.despawn_bound_objects::<ABCDR>();
-    
+
     assert_eq!(world.entities().len(), 0);
 
     assert!(!world.contains_resource::<R>());
@@ -167,7 +173,7 @@ pub fn test() {
     assert!(world.contains_resource::<R>());
 
     world.despawn_bound_objects::<ABCDR>();
-    
+
     world.scoped_deserialize_lens(|| {
         let _: ScopedDeserializeLens<ABCDR> = serde_json::from_value(value).unwrap();
     });
@@ -178,58 +184,49 @@ pub fn test() {
 
     world.despawn_bound_objects::<ABCDR>();
 
-    world.spawn((
-        A('y'),
-        B(3.0),
-        C("Ferris".to_owned()),
-        D(69),
-    ));
+    world.spawn((A('y'), B(3.0), C("Ferris".to_owned()), D(69)));
 
-    world.spawn((
-        A('z'),
-        B(4.0),
-    ));
-    let value = world.save::<ABWithCD, _>(serde_json::value::Serializer).unwrap();
+    world.spawn((A('z'), B(4.0)));
+    let value = world
+        .save::<ABWithCD, _>(serde_json::value::Serializer)
+        .unwrap();
 
-    assert_eq!(value, json!([
-        {
-            "a": "y",
-            "b": 3.0,
-        }
-    ]));
+    assert_eq!(
+        value,
+        json!([
+            {
+                "a": "y",
+                "b": 3.0,
+            }
+        ])
+    );
     world.despawn_bound_objects::<ABWithCD>();
     assert!(!world.entities().is_empty());
     world.clear_all();
 
-    world.spawn((
-        A('y'),
-        B(3.0),
-        C("Ferris".to_owned()),
-        D(69),
-    ));
+    world.spawn((A('y'), B(3.0), C("Ferris".to_owned()), D(69)));
 
-    world.spawn((
-        A('z'),
-        B(4.5),
-        C("Gopher".to_owned()),
-        D(32),
-    ));
+    world.spawn((A('z'), B(4.5), C("Gopher".to_owned()), D(32)));
 
-    let value = world.save::<AbcdQuery, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<AbcdQuery, _>(serde_json::value::Serializer)
+        .unwrap();
 
-    assert_eq!(value, json!([
-        {
-            "a": "y",
-            "b": 3.0,
-            "c": "Ferris",
-            "d": 69
-        },
-        {
-            "a": "z",
-            "b": 4.5,
-            "c": "Gopher",
-            "d": 32
-        },
-    ]));
-
+    assert_eq!(
+        value,
+        json!([
+            {
+                "a": "y",
+                "b": 3.0,
+                "c": "Ferris",
+                "d": 69
+            },
+            {
+                "a": "z",
+                "b": 4.5,
+                "c": "Gopher",
+                "d": 32
+            },
+        ])
+    );
 }

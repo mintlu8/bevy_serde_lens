@@ -1,10 +1,10 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
+use bevy_serde_lens::typetagged::TypeTagged;
+use bevy_serde_lens::typetagged::{IntoTypeTagged, TraitObject};
 use bevy_serde_lens::WorldExtension;
-use bevy_serde_lens::typetagged::{TraitObject, IntoTypeTagged};
 use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
-use bevy_serde_lens::typetagged::TypeTagged;
 use serde_json::json;
 
 macro_rules! impl_animal {
@@ -29,12 +29,10 @@ macro_rules! impl_animal {
     };
 }
 macro_rules! boxed_animal {
-    ($expr: expr) => {
-        {
-            let val: Box<dyn Animal> = Box::new($expr);
-            val
-        }
-    }
+    ($expr: expr) => {{
+        let val: Box<dyn Animal> = Box::new($expr);
+        val
+    }};
 }
 pub trait Animal: Send + Sync + 'static {
     fn name(&self) -> &'static str;
@@ -67,7 +65,7 @@ impl_animal!(Bird, Dog, Turtle);
 #[derive(Component, Serialize, Deserialize, TypePath)]
 pub struct AnimalComponent {
     #[serde(with = "TypeTagged")]
-    animal: Box<dyn Animal>
+    animal: Box<dyn Animal>,
 }
 
 #[test]
@@ -77,44 +75,65 @@ pub fn test() {
     world.register_typetag::<Box<dyn Animal>, Dog>();
     world.register_typetag::<Box<dyn Animal>, Turtle>();
     world.spawn(AnimalComponent {
-        animal: boxed_animal!(Dog { name: "Rex".to_owned() })
+        animal: boxed_animal!(Dog {
+            name: "Rex".to_owned()
+        }),
     });
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
 
     assert_eq!(value, json!([{"animal": {"Dog": {"name": "Rex"}}}]));
     world.spawn(AnimalComponent {
-        animal: boxed_animal!(Bird("bevy".to_owned()))
+        animal: boxed_animal!(Bird("bevy".to_owned())),
     });
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
-    assert_eq!(value, json!([
-        {"animal": {"Dog": {"name": "Rex"}}}, 
-        {"animal": {"Bird": "bevy"}}
-    ]));
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
+    assert_eq!(
+        value,
+        json!([
+            {"animal": {"Dog": {"name": "Rex"}}},
+            {"animal": {"Bird": "bevy"}}
+        ])
+    );
     world.spawn(AnimalComponent {
-        animal: boxed_animal!(Turtle)
+        animal: boxed_animal!(Turtle),
     });
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
-    assert_eq!(value, json!([
-        {"animal": {"Dog": {"name": "Rex"}}}, 
-        {"animal": {"Bird": "bevy"}}, 
-        {"animal": {"Turtle": null}}, 
-    ]));
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
+    assert_eq!(
+        value,
+        json!([
+            {"animal": {"Dog": {"name": "Rex"}}},
+            {"animal": {"Bird": "bevy"}},
+            {"animal": {"Turtle": null}},
+        ])
+    );
 
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
 
     world.despawn_bound_objects::<AnimalComponent>();
     assert_eq!(world.entities().len(), 0);
     world.load::<AnimalComponent, _>(&value).unwrap();
     assert_eq!(world.entities().len(), 3);
 
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
-    assert_eq!(value, json!([
-        {"animal": {"Dog": {"name": "Rex"}}}, 
-        {"animal": {"Bird": "bevy"}}, 
-        {"animal": {"Turtle": null}}, 
-    ]));
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
+    assert_eq!(
+        value,
+        json!([
+            {"animal": {"Dog": {"name": "Rex"}}},
+            {"animal": {"Bird": "bevy"}},
+            {"animal": {"Turtle": null}},
+        ])
+    );
 
-    let mut vec = postcard::Serializer{
+    let mut vec = postcard::Serializer {
         output: postcard::ser_flavors::AllocVec::new(),
     };
     world.save::<AnimalComponent, _>(&mut vec).unwrap();
@@ -127,10 +146,15 @@ pub fn test() {
     world.load::<AnimalComponent, _>(&mut de).unwrap();
     assert_eq!(world.entities().len(), 3);
 
-    let value = world.save::<AnimalComponent, _>(serde_json::value::Serializer).unwrap();
-    assert_eq!(value, json!([
-        {"animal": {"Dog": {"name": "Rex"}}}, 
-        {"animal": {"Bird": "bevy"}}, 
-        {"animal": {"Turtle": null}}, 
-    ]));
+    let value = world
+        .save::<AnimalComponent, _>(serde_json::value::Serializer)
+        .unwrap();
+    assert_eq!(
+        value,
+        json!([
+            {"animal": {"Dog": {"name": "Rex"}}},
+            {"animal": {"Bird": "bevy"}},
+            {"animal": {"Turtle": null}},
+        ])
+    );
 }
