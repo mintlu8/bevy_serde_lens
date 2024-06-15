@@ -114,38 +114,38 @@ impl WorldExtension for App {
         &mut self,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        self.world.save::<T, S>(serializer)
+        self.world_mut().save::<T, S>(serializer)
     }
 
     fn load<'de, T: BatchSerialization, D: Deserializer<'de>>(
         &mut self,
         deserializer: D,
     ) -> Result<(), D::Error> {
-        self.world.load::<T, D>(deserializer)
+        self.world_mut().load::<T, D>(deserializer)
     }
 
     fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S> {
-        self.world.serialize_lens()
+        self.world_mut().serialize_lens()
     }
 
     fn deserialize_lens<S: BatchSerialization>(&mut self) -> DeserializeLens<S> {
-        self.world.deserialize_lens()
+        self.world_mut().deserialize_lens()
     }
 
     fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        self.world.deserialize_scope(f)
+        self.world_mut().deserialize_scope(f)
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self) {
-        self.world.despawn_bound_objects::<T>()
+        self.world_mut().despawn_bound_objects::<T>()
     }
 
     fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self) {
-        self.world.register_typetag::<A, B>()
+        self.world_mut().register_typetag::<A, B>()
     }
 
     fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
-        self.world.register_deserialize_any::<T, O>(f)
+        self.world_mut().register_deserialize_any::<T, O>(f)
     }
 }
 

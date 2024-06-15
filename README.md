@@ -113,8 +113,7 @@ This saves each type in a map entry:
 
 `bind_query!` can be used to speed up serialization.
 By default `bind_object` queries the world hierarchically as a tree,
-This has roughly similar performance to building a `DynamicScene`
-then serializing it (with `ron`).
+This sacrifice performance a little bit for prettier outputs.
 If your binding has no `Child` or `ChildVec`, you can use `bind_query!`
 which serializes a `Query` directly.
 

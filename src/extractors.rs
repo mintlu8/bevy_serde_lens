@@ -21,8 +21,8 @@ use bevy_ecs::component::Component;
 
 /// Extractor that allows a [`BevyObject`] to be missing.
 ///
-/// The underlying data structure is `Option`,
-/// so you can use `#[serde(skip_deserializing_if("Option::is_none"))]`.
+/// `#[serde(default)]` can be used to make this optional
+/// if used in self describing formats.
 pub struct Maybe<T>(PhantomData<T>);
 
 impl<T> ZstInit for Maybe<T> {
