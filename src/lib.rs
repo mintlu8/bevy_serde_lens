@@ -2,6 +2,7 @@
 use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
 use bevy_ecs::world::EntityRef;
 use bevy_ecs::{component::Component, world::EntityWorldMut};
+use bevy_serde_lens_core::current_entity;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
@@ -21,6 +22,8 @@ pub use entity::{EntityId, Parented};
 
 pub use filter::EntityFilter;
 
+pub(crate) use bevy_serde_lens_core::__private::*;
+
 #[allow(unused)]
 use bevy_asset::Handle;
 #[allow(unused)]
@@ -35,88 +38,20 @@ pub use paste::paste;
 #[doc(hidden)]
 pub use serde;
 
-scoped_tls_hkt::scoped_thread_local!(
-    static ENTITY: Entity
-);
-
-scoped_tls_hkt::scoped_thread_local!(
-    static WORLD: World
-);
-
-scoped_tls_hkt::scoped_thread_local!(
-    static mut WORLD_MUT: World
-);
-
-/// Run a function on a read only reference to [`World`].
-///
-/// # Errors
-///
-/// * If used outside of a [`Serialize`] implementation.
-/// * If used outside `bevy_serde_lens`.
-pub fn with_world<T, S: Serializer>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
-    if !WORLD.is_set() {
-        Err(serde::ser::Error::custom(
-            "Cannot serialize outside the `save` scope",
-        ))
-    } else {
-        Ok(WORLD.with(f))
-    }
-}
-
-/// Run a function on a mutable only reference to [`World`].
-///
-/// # Errors
-///
-/// * If used outside of a [`Deserialize`] implementation.
-/// * If used outside `bevy_serde_lens`.
-/// * If used in a nested manner, as that is a violation to rust's aliasing rule.
-///
-/// ```
-/// with_world_mut(|| {
-///     // panics here
-///     with_world_mut(|| {
-///         ..
-///     })
-/// })
-/// ```
-pub fn with_world_mut<'de, T, S: Deserializer<'de>>(
-    f: impl FnOnce(&mut World) -> T,
-) -> Result<T, S::Error> {
-    if !WORLD_MUT.is_set() {
-        Err(serde::de::Error::custom(
-            "Cannot deserialize outside the `load` scope",
-        ))
-    } else {
-        Ok(WORLD_MUT.with(f))
-    }
-}
+pub use bevy_serde_lens_core::{with_world, with_world_mut};
 
 fn world_entity_scope<T, S: Serializer>(
     f: impl FnOnce(&World, Entity) -> T,
 ) -> Result<T, S::Error> {
-    if !WORLD.is_set() {
-        return Err(serde::ser::Error::custom(
-            "Cannot serialize outside the `save` scope",
-        ));
-    }
-    if !ENTITY.is_set() {
-        return Err(serde::ser::Error::custom("No active entity found"));
-    }
-    Ok(WORLD.with(|w| ENTITY.with(|e| f(w, *e))))
+    let entity = current_entity().map_err(serde::ser::Error::custom)?;
+    with_world(|w| f(w, entity)).map_err(serde::ser::Error::custom)
 }
 
 fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(
     f: impl FnOnce(&mut World, Entity) -> T,
 ) -> Result<T, S::Error> {
-    if !WORLD_MUT.is_set() {
-        return Err(serde::de::Error::custom(
-            "Cannot deserialize outside the `load` scope",
-        ));
-    }
-    if !ENTITY.is_set() {
-        return Err(serde::de::Error::custom("No active entity found"));
-    }
-    Ok(WORLD_MUT.with(|w| ENTITY.with(|e| f(w, *e))))
+    let entity = current_entity().map_err(serde::de::Error::custom)?;
+    with_world_mut(|w| f(w, entity)).map_err(serde::de::Error::custom)
 }
 
 /// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.

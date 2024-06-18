@@ -1,0 +1,8 @@
+[package]
+name = "bevy_serde_lens_core"
+version = "0.14.0"
+edition = "2021"
+
+[dependencies]
+bevy_ecs = "0.14.0-rc.2"
+scoped-tls-hkt = "0.1.4"

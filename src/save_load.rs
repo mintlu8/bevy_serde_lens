@@ -2,7 +2,7 @@ use crate::entity::EID_MAP;
 use crate::typetagged::{
     DeserializeAnyFn, IntoTypeTagged, TraitObject, TypeTagServer, TYPETAG_SERVER,
 };
-use crate::{BatchSerialization, WORLD_MUT};
+use crate::{de_scope, BatchSerialization};
 use bevy_app::App;
 use bevy_ecs::world::World;
 use serde::de::DeserializeSeed;
@@ -75,9 +75,7 @@ impl WorldExtension for World {
         self.init_resource::<TypeTagServer>();
         self.resource_scope::<TypeTagServer, _>(|world, server| {
             TYPETAG_SERVER.set(&server, || {
-                WORLD_MUT
-                    .set(world, || T::De::deserialize(deserializer))
-                    .map(|_| ())
+                de_scope(world, || T::De::deserialize(deserializer)).map(|_| ())
             })
         })
     }
@@ -91,7 +89,7 @@ impl WorldExtension for World {
     }
 
     fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        WORLD_MUT.set(self, f)
+        de_scope(self, f)
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self) {

@@ -23,7 +23,7 @@ impl<T: Asset> Deref for PathHandle<T> {
 
 impl<T: Asset> Serialize for PathHandle<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world::<_, S>(|world| {
+        with_world(|world| {
             let Some(asset_server) = world.get_resource::<AssetServer>() else {
                 return Err(serde::ser::Error::custom("AssetServer not found."));
             };
@@ -34,7 +34,8 @@ impl<T: Asset> Serialize for PathHandle<T> {
                     self.0
                 ))),
             }
-        })?
+        })
+        .map_err(serde::ser::Error::custom)?
     }
 }
 
@@ -44,12 +45,13 @@ impl<'de, T: Asset> Deserialize<'de> for PathHandle<T> {
         D: serde::Deserializer<'de>,
     {
         let path = PathBuf::deserialize(deserializer)?;
-        with_world_mut::<_, D>(|world| {
+        with_world_mut(|world| {
             let Some(asset_server) = world.get_resource::<AssetServer>() else {
                 return Err(serde::de::Error::custom("AssetServer not found."));
             };
             Ok(PathHandle(asset_server.load(path)))
-        })?
+        })
+        .map_err(serde::de::Error::custom)?
     }
 }
 
@@ -60,7 +62,7 @@ pub struct UniqueHandle<T: Asset>(pub Handle<T>);
 
 impl<T: Asset + Serialize> Serialize for UniqueHandle<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world::<_, S>(|world| {
+        with_world(|world| {
             let Some(assets) = world.get_resource::<Assets<T>>() else {
                 return Err(serde::ser::Error::custom(format!(
                     "Assets asset missing for handle {:?}.",
@@ -74,7 +76,8 @@ impl<T: Asset + Serialize> Serialize for UniqueHandle<T> {
                     self.0
                 ))),
             }
-        })?
+        })
+        .map_err(serde::ser::Error::custom)?
     }
 }
 
@@ -84,12 +87,13 @@ impl<'de, T: Asset + Deserialize<'de>> Deserialize<'de> for UniqueHandle<T> {
         D: serde::Deserializer<'de>,
     {
         let path = T::deserialize(deserializer)?;
-        with_world_mut::<_, D>(|world| {
+        with_world_mut(|world| {
             let Some(mut assets) = world.get_resource_mut::<Assets<T>>() else {
                 return Err(serde::de::Error::custom("AssetServer not found."));
             };
             Ok(UniqueHandle(assets.add(path)))
-        })?
+        })
+        .map_err(serde::de::Error::custom)?
     }
 }
 

@@ -49,7 +49,7 @@ impl<T: InterningKey> DerefMut for Interned<T> {
 
 impl<T: InterningKey> Serialize for Interned<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world::<_, S>(|world| match world.get_resource::<T::Interner>() {
+        with_world(|world| match world.get_resource::<T::Interner>() {
             Some(interner) => match interner.get(&self.0) {
                 Ok(value) => value.serialize(serializer),
                 Err(err) => Err(serde::ser::Error::custom(err)),
@@ -58,14 +58,15 @@ impl<T: InterningKey> Serialize for Interned<T> {
                 "Interner resource {} missing.",
                 type_name::<T::Interner>()
             ))),
-        })?
+        })
+        .map_err(serde::ser::Error::custom)?
     }
 }
 
 impl<'de, T: InterningKey> Deserialize<'de> for Interned<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = <<T::Interner as Interner<T>>::Value<'de>>::deserialize(deserializer)?;
-        with_world_mut::<_, D>(|world| match world.get_resource_mut::<T::Interner>() {
+        with_world_mut(|world| match world.get_resource_mut::<T::Interner>() {
             Some(mut interner) => match interner.add(value) {
                 Ok(value) => Ok(Interned(value)),
                 Err(err) => Err(serde::de::Error::custom(err)),
@@ -74,7 +75,8 @@ impl<'de, T: InterningKey> Deserialize<'de> for Interned<T> {
                 "Interner resource {} missing.",
                 type_name::<T::Interner>()
             ))),
-        })?
+        })
+        .map_err(serde::de::Error::custom)?
     }
 }
 

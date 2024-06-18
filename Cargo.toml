@@ -1,3 +1,5 @@
+[workspace]
+members = ["core"]
 
 [package]
 name = "bevy_serde_lens"
@@ -23,6 +25,8 @@ extra-checks = []
 doctest = false
 
 [dependencies]
+bevy_serde_lens_core = { version = "0.14", path = "./core"}
+
 bevy_ecs = "0.14.0-rc.2"
 bevy_app = "0.14.0-rc.2"
 bevy_hierarchy = "0.14.0-rc.2"

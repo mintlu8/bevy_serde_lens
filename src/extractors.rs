@@ -1,8 +1,8 @@
 use std::{any::type_name, marker::PhantomData};
 
 use crate::{
-    world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, BindProjectQuery, ZstInit,
-    ENTITY, WORLD, WORLD_MUT,
+    entity_scope, world_entity_scope, world_entity_scope_mut, BevyObject, BindProject,
+    BindProjectQuery, ZstInit,
 };
 use bevy_ecs::{
     entity::Entity,
@@ -11,6 +11,7 @@ use bevy_ecs::{
     world::{FromWorld, World},
 };
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnRecursiveExt};
+use bevy_serde_lens_core::{with_world, with_world_mut};
 use serde::{
     de::{DeserializeOwned, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -48,20 +49,17 @@ impl<T: BevyObject> BindProjectQuery for Maybe<T> {
 
 impl<T: BevyObject> Serialize for Maybe<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        WORLD
-            .with(|world| {
-                ENTITY.with(|entity| match world.get_entity(*entity) {
-                    Some(entity_ref) => {
-                        if T::filter(&entity_ref) {
-                            Some(T::init())
-                        } else {
-                            None
-                        }
-                    }
-                    None => None,
-                })
-            })
-            .serialize(serializer)
+        world_entity_scope::<_, S>(|world, entity| match world.get_entity(entity) {
+            Some(entity_ref) => {
+                if T::filter(&entity_ref) {
+                    Some(T::init())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        })?
+        .serialize(serializer)
     }
 }
 
@@ -102,7 +100,8 @@ impl<T: BevyObject> Serialize for Maybe<Child<T>> {
                     continue;
                 };
                 if T::filter(&entity) {
-                    return ENTITY.set(&entity.id(), || Some(T::init()).serialize(serializer));
+                    return entity_scope(entity.id(), || Some(T::init()).serialize(serializer))
+                        .map_err(serde::ser::Error::custom);
                 }
             }
             None::<T::Object>.serialize(serializer)
@@ -231,20 +230,23 @@ impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
         A: SeqAccess<'de>,
     {
         loop {
-            let entity = WORLD_MUT.with(|world| {
+            let entity = with_world_mut(|world| {
                 let entity = world.spawn_empty().id();
                 if let Some(mut root) = T::get_root(world) {
                     root.add_child(entity);
                 }
                 entity
-            });
-            match ENTITY.set(&entity, || seq.next_element::<T::Object>()) {
+            })
+            .map_err(serde::de::Error::custom)?;
+            match entity_scope(entity, || seq.next_element::<T::Object>()) {
                 Err(err) => {
-                    WORLD_MUT.with(|world| safe_despawn(world, entity));
+                    with_world_mut(|world| safe_despawn(world, entity))
+                        .map_err(serde::de::Error::custom)?;
                     return Err(err);
                 }
                 Ok(None) => {
-                    WORLD_MUT.with(|world| safe_despawn(world, entity));
+                    with_world_mut(|world| safe_despawn(world, entity))
+                        .map_err(serde::de::Error::custom)?;
                     break;
                 }
                 Ok(Some(_)) => {}
@@ -320,7 +322,7 @@ impl<T> ZstInit for SerializeResource<T> {
 
 impl<T: Resource + Serialize> Serialize for SerializeResource<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        WORLD.with(|world| {
+        with_world(|world| {
             let Some(resource) = world.get_resource::<T>() else {
                 return Err(serde::ser::Error::custom(format!(
                     "Resource missing {}.",
@@ -329,6 +331,7 @@ impl<T: Resource + Serialize> Serialize for SerializeResource<T> {
             };
             resource.serialize(serializer)
         })
+        .map_err(serde::ser::Error::custom)?
     }
 }
 
@@ -338,7 +341,8 @@ impl<'de, T: Resource + Deserialize<'de>> Deserialize<'de> for SerializeResource
         D: serde::Deserializer<'de>,
     {
         let resource = T::deserialize(deserializer)?;
-        WORLD_MUT.with(|world| world.insert_resource(resource));
+        with_world_mut(|world| world.insert_resource(resource))
+            .map_err(serde::de::Error::custom)?;
         Ok(Self(PhantomData))
     }
 }
@@ -354,7 +358,7 @@ impl<T> ZstInit for SerializeNonSend<T> {
 
 impl<T: Serialize + 'static> Serialize for SerializeNonSend<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        WORLD.with(|world| {
+        with_world(|world| {
             let Some(resource) = world.get_non_send_resource::<T>() else {
                 return Err(serde::ser::Error::custom(format!(
                     "Non-send resource missing {}.",
@@ -363,6 +367,7 @@ impl<T: Serialize + 'static> Serialize for SerializeNonSend<T> {
             };
             resource.serialize(serializer)
         })
+        .map_err(serde::ser::Error::custom)?
     }
 }
 
@@ -372,7 +377,8 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
         D: serde::Deserializer<'de>,
     {
         let resource = T::deserialize(deserializer)?;
-        WORLD_MUT.with(|world| world.insert_non_send_resource(resource));
+        with_world_mut(|world| world.insert_non_send_resource(resource))
+            .map_err(serde::de::Error::custom)?;
         Ok(Self(PhantomData))
     }
 }
@@ -414,7 +420,7 @@ impl<T: BevyObject> Serialize for Child<T> {
                     continue;
                 };
                 if T::filter(&entity) {
-                    return ENTITY.set(&entity.id(), || T::init().serialize(serializer));
+                    return entity_scope(entity.id(), || T::init().serialize(serializer));
                 }
             }
             Err(serde::ser::Error::custom(format!(
@@ -435,7 +441,8 @@ impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
             world.entity_mut(entity).add_child(child);
             child
         })?;
-        ENTITY.set(&new_child, || <T::Object>::deserialize(deserializer))?;
+        entity_scope(new_child, || <T::Object>::deserialize(deserializer))
+            .map_err(serde::de::Error::custom)?;
         Ok(Child(PhantomData))
     }
 }
@@ -484,7 +491,7 @@ impl<T: BevyObject> Serialize for ChildVec<T> {
                 .filter_map(|e| world.get_entity(*e))
                 .filter(T::filter)
             {
-                ENTITY.set(&entity.id(), || seq.serialize_element(&T::init()))?
+                entity_scope(entity.id(), || seq.serialize_element(&T::init()))?;
             }
             seq.end()
         })?

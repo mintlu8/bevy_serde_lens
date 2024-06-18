@@ -3,13 +3,13 @@ use std::cell::RefCell;
 
 use bevy_ecs::{entity::Entity, query::With};
 use bevy_hierarchy::{BuildWorldChildren, Parent};
+use bevy_serde_lens_core::current_entity;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
     world_entity_scope, world_entity_scope_mut, BindProject, BindProjectQuery, Maybe, ZstInit,
-    ENTITY,
 };
 
 thread_local! {
@@ -98,7 +98,7 @@ impl EntityId {
 
 impl Serialize for EntityId {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let entity = ENTITY.with(|e| *e);
+        let entity = current_entity().map_err(serde::ser::Error::custom)?;
         entity.to_bits().serialize(serializer)
     }
 }
@@ -106,7 +106,7 @@ impl Serialize for EntityId {
 impl<'de> Deserialize<'de> for EntityId {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let entity = u64::deserialize(deserializer)?;
-        let current = ENTITY.with(|e| *e);
+        let current = current_entity().map_err(serde::de::Error::custom)?;
         EID_MAP.with(|x| x.borrow_mut().insert(entity, current));
         Ok(EntityId)
     }
