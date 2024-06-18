@@ -41,7 +41,7 @@ pub trait WorldExtension {
     fn deserialize_lens<S: BatchSerialization>(&mut self) -> DeserializeLens<S>;
     /// Create a [`Deserialize`] scope from a [`World`].
     ///
-    /// [`ScopedDeserializeLens`] can be used inside the scope.
+    /// [`InWorld`] can be used inside the scope.
     fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T;
     /// Despawn all entities in a [`BatchSerialization`] type recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);

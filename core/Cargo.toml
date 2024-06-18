@@ -3,6 +3,17 @@ name = "bevy_serde_lens_core"
 version = "0.14.0"
 edition = "2021"
 
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+readme = "README.md"
+repository = "https://github.com/mintlu8/bevy_serde_lens"
+description = """
+World access module for bevy_serde_lens.
+"""
+
+keywords = ["bevy", "serde", "serialize", "save"]
+
 [dependencies]
 bevy_ecs = "0.14.0-rc.2"
 scoped-tls-hkt = "0.1.4"

@@ -16,6 +16,7 @@ thread_local! {
     pub(crate) static EID_MAP: RefCell<FxHashMap<u64, Entity>> = RefCell::new(FxHashMap::default());
 }
 
+#[doc(hidden)]
 #[cfg(any(feature = "extra-checks", debug_assertions))]
 macro_rules! validate {
     ($val: expr) => {{
@@ -36,6 +37,7 @@ macro_rules! validate {
     }};
 }
 
+#[doc(hidden)]
 #[cfg(not(any(feature = "extra-checks", debug_assertions)))]
 macro_rules! validate {
     ($val: expr) => {

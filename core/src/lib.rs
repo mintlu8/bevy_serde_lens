@@ -4,10 +4,6 @@
 //! should depend on this crate for world access
 //! since this tracks `bevy` versions instead of
 //! `bevy_serde_lens` versions.
-//!
-//! # Versioning
-//!
-//! There should be one release per bevy major version with the same version number.
 
 use std::{cell::Cell, fmt::Display};
 
@@ -25,6 +21,7 @@ thread_local! {
     static ENTITY: Cell<Option<Entity>> = const {Cell::new(None)}
 }
 
+/// Error of `bevy_serde_lens_core`.
 #[derive(Debug)]
 pub struct Error(&'static str);
 
@@ -55,7 +52,7 @@ pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> Result<T, Error> {
 ///
 /// # Errors
 ///
-/// * If used outside of a [`Deserialize`] implementation.
+/// * If used outside of a `Deserialize` implementation.
 /// * If used outside `bevy_serde_lens`.
 /// * If used in a nested manner, as that is a violation to rust's aliasing rule.
 ///
@@ -76,7 +73,7 @@ pub fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> Result<T, Error> {
     }
 }
 
-/// Obtain a the current [`Entity`] in `bevy_serde_lens`.
+/// Obtain the current [`Entity`] in `bevy_serde_lens`.
 ///
 /// # Errors
 ///
