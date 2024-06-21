@@ -36,7 +36,7 @@ bevy_reflect = "0.14.0-rc.2"
 erased-serde = "0.4.3"
 itertools = "0.13.0"
 serde = { version = "1.0.197", features = ["derive"] }
-rustc-hash = "1.1.0"
+rustc-hash = "2.0.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
