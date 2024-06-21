@@ -53,7 +53,7 @@ pub fn bench_ser_strings(c: &mut Criterion) {
     world2.register_type::<Character>();
     let dynamic_scene = DynamicScene::from_world(world2.world());
     let mut registry = TypeRegistry::new();
-    registry.add_registration(TypeRegistration::of::<Character>());
+    registry.register::<Character>();
     c.bench_function("postcard_strings_vec", |b| {
         b.iter(|| postcard::to_allocvec(&strings).unwrap());
     });
@@ -93,7 +93,7 @@ pub fn bench_de_strings(c: &mut Criterion) {
     world2.world_mut().spawn_batch(strings.iter().cloned());
     world2.register_type::<Character>();
     let mut registry2 = TypeRegistry::new();
-    registry2.add_registration(TypeRegistration::of::<Character>());
+    registry2.register::<Character>();
     let ron2 = DynamicScene::from_world(world2.world())
         .serialize(&registry2)
         .unwrap();
@@ -142,7 +142,7 @@ pub fn bench_ser_bio(c: &mut Criterion) {
     world2.register_type::<Bio>();
     let dynamic_scene = DynamicScene::from_world(world2.world());
     let mut registry = TypeRegistry::new();
-    registry.add_registration(TypeRegistration::of::<Bio>());
+    registry.register::<Bio>();
     c.bench_function("postcard_bios_serde_lens", |b| {
         b.iter(|| postcard::to_allocvec(&world.serialize_lens::<Bio>()).unwrap());
     });
@@ -171,13 +171,12 @@ pub fn bench_de_bios(c: &mut Criterion) {
 
     let mut world2 = App::new();
     world2.world_mut().spawn_batch(strings.iter().cloned());
-    world2.register_type::<Character>();
+    world2.register_type::<Bio>();
     let mut registry2 = TypeRegistry::new();
-    registry2.add_registration(TypeRegistration::of::<Bio>());
+    registry2.register::<Bio>();
     let ron2 = DynamicScene::from_world(world2.world())
         .serialize(&registry2)
         .unwrap();
-
     c.bench_function("postcard_bios_de", |b| {
         b.iter(|| {
             world.deserialize_scope(|| {
@@ -244,10 +243,10 @@ pub fn bench_ser_archetypal(c: &mut Criterion) {
     world2.register_type::<IsDead>();
     let dynamic_scene = DynamicScene::from_world(world2.world());
     let mut registry = TypeRegistry::new();
-    registry.add_registration(TypeRegistration::of::<Character>());
-    registry.add_registration(TypeRegistration::of::<Bio>());
-    registry.add_registration(TypeRegistration::of::<Gender>());
-    registry.add_registration(TypeRegistration::of::<IsDead>());
+    registry.register::<Character>();
+    registry.register::<Bio>();
+    registry.register::<Gender>();
+    registry.register::<IsDead>();
     c.bench_function("postcard_archetypal_serde_lens", |b| {
         b.iter(|| postcard::to_allocvec(&world.serialize_lens::<Archetypal>()).unwrap());
     });
