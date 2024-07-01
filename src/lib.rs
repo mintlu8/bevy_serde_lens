@@ -2,7 +2,6 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
 use bevy_ecs::world::EntityRef;
-use bevy_serde_lens_core::current_entity;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
@@ -41,7 +40,7 @@ pub use paste::paste;
 #[doc(hidden)]
 pub use serde;
 
-pub use bevy_serde_lens_core::{with_world, with_world_mut};
+pub use bevy_serde_lens_core::{with_world, with_world_mut, current_entity};
 #[cfg(feature = "derive")]
 pub use bevy_serde_lens_derive::BevyObject;
 
