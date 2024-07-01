@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
+use bevy_ecs::component::Component;
 use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
 use bevy_ecs::world::EntityRef;
-use bevy_ecs::{component::Component, world::EntityWorldMut};
 use bevy_serde_lens_core::current_entity;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -30,7 +30,11 @@ use bevy_asset::Handle;
 use bevy_hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{entity::Entity, query::With, world::World};
+pub use bevy_ecs::{
+    entity::Entity,
+    query::With,
+    world::{EntityWorldMut, World},
+};
 #[doc(hidden)]
 pub use bevy_reflect::TypePath;
 #[doc(hidden)]
@@ -39,6 +43,8 @@ pub use paste::paste;
 pub use serde;
 
 pub use bevy_serde_lens_core::{with_world, with_world_mut};
+#[cfg(feature = "derive")]
+pub use bevy_serde_lens_derive::BevyObject;
 
 fn world_entity_scope<T, S: Serializer>(
     f: impl FnOnce(&World, Entity) -> T,

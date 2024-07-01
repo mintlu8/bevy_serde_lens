@@ -1,9 +1,9 @@
 use bevy_asset::{Asset, Handle};
-use bevy_ecs::{component::Component, query::With};
+use bevy_ecs::{bundle::Bundle, component::Component, query::With};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
     asset::{PathHandle, UniqueHandle},
-    bind_object, bind_query, DefaultInit,
+    bind_object, BevyObject, ChildVec, DefaultInit, Maybe,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,26 +39,37 @@ struct Bbb;
 #[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 struct Ccc;
 
-#[derive(Debug, Component, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Default, Component, Serialize, Deserialize, TypePath)]
 struct Ddd;
 
-bind_object!(
-    struct X {
-        a: Aaa,
-        b: Bbb,
-        c: Ccc,
-        d: Ddd,
-    }
-);
+#[derive(Debug, Bundle, BevyObject)]
+struct Xa {
+    a: Aaa,
+    b: Bbb,
+    c: Ccc,
+    d: Ddd,
+}
 
-bind_query!(
-    struct Y {
-        a: Aaa,
-        b: Bbb,
-        c: Ccc,
-        d: Ddd,
-    }
-);
+#[derive(Debug, Bundle, BevyObject)]
+#[bevy_object(query, rename = "xb")]
+struct Xb {
+    a: Aaa,
+    b: Bbb,
+    c: Ccc,
+    #[bevy_object(no_filter)]
+    d: Ddd,
+}
+
+#[derive(Debug, BevyObject)]
+#[bevy_object(rename = "xb")]
+struct Xc {
+    #[bevy_object(no_filter)]
+    a: Aaa,
+    #[serde(default)]
+    b: Maybe<Bbb>,
+    c: ChildVec<Ccc>,
+    d: DefaultInit<Ddd>,
+}
 
 #[test]
 pub fn test() {}

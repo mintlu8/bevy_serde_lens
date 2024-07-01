@@ -1,5 +1,5 @@
 [workspace]
-members = ["core"]
+members = ["core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
@@ -17,15 +17,18 @@ Stateful, structural and human-readable serialization crate for the bevy engine.
 keywords = ["bevy", "serde", "serialize", "save"]
 
 [features]
+default = ["derive"]
 ## Performance impactful checks at serialization time.
 ## Enabled by default in `debug` mode regardless of this feature.
 extra-checks = []
+derive = ["bevy_serde_lens_derive"]
 
 [lib]
 doctest = false
 
 [dependencies]
-bevy_serde_lens_core = { version = "0.14", path = "./core"}
+bevy_serde_lens_core = { version = "0.14", path = "./core" }
+bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
 bevy_ecs = "0.14.0-rc.2"
 bevy_app = "0.14.0-rc.2"

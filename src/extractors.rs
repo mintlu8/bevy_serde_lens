@@ -1,4 +1,4 @@
-use std::{any::type_name, marker::PhantomData};
+use std::{any::type_name, fmt::Debug, marker::PhantomData};
 
 use crate::{
     entity_scope, world_entity_scope, world_entity_scope_mut, BevyObject, BindProject,
@@ -25,6 +25,12 @@ use bevy_ecs::component::Component;
 /// `#[serde(default)]` can be used to make this optional
 /// if used in self describing formats.
 pub struct Maybe<T>(PhantomData<T>);
+
+impl<T> Debug for Maybe<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Maybe").finish()
+    }
+}
 
 impl<T> ZstInit for Maybe<T> {
     fn init() -> Self {
@@ -122,6 +128,12 @@ impl<'de, T: BevyObject> Deserialize<'de> for Maybe<Child<T>> {
 /// Use `#[serde(skip)]` to skip serializing this component completely.
 pub struct DefaultInit<T>(PhantomData<T>);
 
+impl<T> Debug for DefaultInit<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultInit").finish()
+    }
+}
+
 impl<T> ZstInit for DefaultInit<T> {
     fn init() -> Self {
         Self(PhantomData)
@@ -197,6 +209,12 @@ impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
 /// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
 pub struct Root<T>(PhantomData<T>);
 
+impl<T> Debug for Root<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Root").finish()
+    }
+}
+
 impl<T> ZstInit for Root<T> {
     fn init() -> Self {
         Self(PhantomData)
@@ -259,6 +277,12 @@ impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
 /// Serialize a component on the active entity.
 pub struct SerializeComponent<T>(PhantomData<T>);
 
+impl<T> Debug for SerializeComponent<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerializeComponent").finish()
+    }
+}
+
 impl<T> ZstInit for SerializeComponent<T> {
     fn init() -> Self {
         Self(PhantomData)
@@ -314,6 +338,12 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
 /// Serialize a resource on the active world.
 pub struct SerializeResource<T>(PhantomData<T>);
 
+impl<T> Debug for SerializeResource<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerializeResource").finish()
+    }
+}
+
 impl<T> ZstInit for SerializeResource<T> {
     fn init() -> Self {
         Self(PhantomData)
@@ -356,6 +386,12 @@ impl<T> ZstInit for SerializeNonSend<T> {
     }
 }
 
+impl<T> Debug for SerializeNonSend<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerializeNonSend").finish()
+    }
+}
+
 impl<T: Serialize + 'static> Serialize for SerializeNonSend<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         with_world(|world| {
@@ -390,6 +426,12 @@ pub struct Child<T>(PhantomData<T>);
 impl<T> ZstInit for Child<T> {
     fn init() -> Self {
         Self(PhantomData)
+    }
+}
+
+impl<T> Debug for Child<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Child").finish()
     }
 }
 
@@ -450,6 +492,12 @@ impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
 /// Extractor for multiple [`BevyObject`]s in [`Children`]
 /// instead of the entity itself. This serializes children like a `Vec`.
 pub struct ChildVec<T>(PhantomData<T>);
+
+impl<T> Debug for ChildVec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChildVec").finish()
+    }
+}
 
 impl<T> ZstInit for ChildVec<T> {
     fn init() -> Self {
