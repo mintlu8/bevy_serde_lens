@@ -1,31 +1,30 @@
 #![allow(clippy::upper_case_acronyms)]
 use bevy_ecs::{component::Component, query::With, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
+use bevy_serde_lens::{BevyObject, DefaultInit, WorldExtension};
 use serde_json::json;
 
 #[derive(Component, TypePath, Default)]
 pub struct A(char);
 
-bind_object!(
-    pub struct B as A {
-        a: DefaultInit<A>,
-    }
-);
+#[derive(BevyObject)]
+pub struct B {
+    a: DefaultInit<A>,
+}
 
-bind_object!(
-    pub struct C as A {
-        #[serde(default)]
-        a: DefaultInit<A>,
-    }
-);
+#[derive(BevyObject)]
+pub struct C {
+    #[serde(default)]
+    a: DefaultInit<A>,
+}
 
-bind_object!(
-    pub struct D as A {
-        #[serde(skip)]
-        a: DefaultInit<A>,
-    }
-);
+
+#[derive(BevyObject)]
+pub struct D {
+    #[serde(skip)]
+    a: DefaultInit<A>,
+}
+
 
 #[test]
 pub fn test() {

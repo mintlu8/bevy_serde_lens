@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::{Reflect, TypeRegistration, TypeRegistry};
 use bevy_scene::{serde::SceneDeserializer, DynamicScene};
-use bevy_serde_lens::{bind_query, InWorld, WorldExtension};
+use bevy_serde_lens::{BevyObject, InWorld, WorldExtension};
 use criterion::{criterion_group, criterion_main, Criterion};
 use itertools::izip;
 use rand::distributions::{Distribution, Standard};
@@ -212,14 +212,14 @@ pub fn bench_de_bios(c: &mut Criterion) {
     });
 }
 
-bind_query!(
-    pub struct Archetypal {
-        character: Character,
-        bio: Bio,
-        gender: Gender,
-        is_dead: IsDead,
-    }
-);
+#[derive(BevyObject)]
+pub struct Archetypal {
+    character: Character,
+    bio: Bio,
+    gender: Gender,
+    is_dead: IsDead,
+}
+
 
 pub fn bench_ser_archetypal(c: &mut Criterion) {
     let charas = thousand_of::<Character>();

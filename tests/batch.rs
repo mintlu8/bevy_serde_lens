@@ -1,7 +1,7 @@
 #![allow(clippy::upper_case_acronyms)]
-use bevy_ecs::{component::Component, query::With, system::Resource, world::World};
+use bevy_ecs::{bundle::Bundle, component::Component, system::Resource, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{batch, bind_object, bind_query, InWorld, SerializeResource, WorldExtension};
+use bevy_serde_lens::{batch, BevyObject, InWorld, SerializeResource, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -25,21 +25,24 @@ pub struct D(usize);
 #[serde(transparent)]
 pub struct R(usize);
 
-bind_object!(pub struct ABWithCD as (With<A>, With<B>, With<C>, With<D>) {
+#[derive(Bundle, BevyObject)]
+pub struct AbBundle {
     a: A,
     b: B,
-});
+}
 
-bind_query!(pub struct AQuery as A {
+#[derive(Bundle, BevyObject)]
+pub struct ABundle {
     a: A
-});
+}
 
-bind_query!(pub struct AbcdQuery as (With<A>, With<B>, With<C>, With<D>) {
+#[derive(Bundle, BevyObject)]
+pub struct AbcdBundle {
     a: A,
     b: B,
     c: C,
     d: D,
-});
+}
 
 type AB = batch!(A, B);
 type BD = batch!(B, D);
@@ -186,7 +189,7 @@ pub fn test() {
 
     world.spawn((A('z'), B(4.0)));
     let value = world
-        .save::<ABWithCD, _>(serde_json::value::Serializer)
+        .save::<AbBundle, _>(serde_json::value::Serializer)
         .unwrap();
 
     assert_eq!(
@@ -195,11 +198,13 @@ pub fn test() {
             {
                 "a": "y",
                 "b": 3.0,
+            },
+            {
+                "a": "z",
+                "b": 4.0,
             }
         ])
     );
-    world.despawn_bound_objects::<ABWithCD>();
-    assert!(!world.entities().is_empty());
     world.clear_all();
 
     world.spawn((A('y'), B(3.0), C("Ferris".to_owned()), D(69)));
@@ -207,7 +212,7 @@ pub fn test() {
     world.spawn((A('z'), B(4.5), C("Gopher".to_owned()), D(32)));
 
     let value = world
-        .save::<AbcdQuery, _>(serde_json::value::Serializer)
+        .save::<AbcdBundle, _>(serde_json::value::Serializer)
         .unwrap();
 
     assert_eq!(

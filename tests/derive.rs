@@ -1,9 +1,9 @@
 use bevy_asset::{Asset, Handle};
-use bevy_ecs::{bundle::Bundle, component::Component, query::With};
+use bevy_ecs::{bundle::Bundle, component::Component};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
     asset::{PathHandle, UniqueHandle},
-    bind_object, BevyObject, ChildVec, DefaultInit, Maybe,
+    BevyObject, ChildVec, DefaultInit, Maybe,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,11 +24,6 @@ struct MySprite(
 
 #[derive(Debug, Component, Default)]
 struct A;
-
-bind_object!(struct B as (With<A>) {
-    #[serde(default)]
-    a: DefaultInit<A>,
-});
 
 #[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 struct Aaa;

@@ -1,8 +1,8 @@
-use bevy_ecs::{component::Component, query::With, world::World};
+use bevy_ecs::{component::Component, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
-    batch, bind_object, bind_query, ChildVec, EntityId, Maybe, Parented, WorldExtension,
+    batch, BevyObject, ChildVec, EntityId, Maybe, Parented, WorldExtension
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -31,47 +31,60 @@ pub struct Ability(String);
 #[serde(transparent)]
 pub struct Effect(String);
 
-bind_object!(pub struct SerializeUnit as With<Unit> {
+#[derive(BevyObject)]
+pub struct SerializeUnit {
     unit: Unit,
     #[serde(default)]
+    #[bevy_object(no_filter)]
     weapon: Maybe<Weapon>,
     #[serde(default)]
+    #[bevy_object(no_filter)]
     armor: Maybe<Armor>,
     #[serde(default)]
     potions: ChildVec<Potion>,
     #[serde(default)]
     abilities: ChildVec<SerializeAbility>
-});
+}
 
-bind_object!(pub struct SerializeAbility as Ability {
+#[derive(BevyObject)]
+
+pub struct SerializeAbility {
     ability: Ability,
     effects: ChildVec<Effect>
-});
+}
 
-bind_query!(pub struct SerializeUnitEid as With<Unit> {
+#[derive(BevyObject)]
+#[bevy_object(query)]
+pub struct SerializeUnitEid {
     entity: EntityId,
     unit: Unit,
     #[serde(default)]
     weapon: Maybe<Weapon>,
     #[serde(default)]
     armor: Maybe<Armor>,
-});
+}
 
-bind_query!(pub struct SerializeAbilityEid as Ability {
+#[derive(BevyObject)]
+#[bevy_object(query)]
+pub struct SerializeAbilityEid {
     entity: EntityId,
     ability: Ability,
     parent: Parented,
-});
+}
 
-bind_query!(pub struct SerializeEffectEid as Effect {
+#[derive(BevyObject)]
+#[bevy_object(query)]
+pub struct SerializeEffectEid {
     effect: Effect,
     parent: Parented,
-});
+}
 
-bind_query!(pub struct SerializePotionEid as Potion {
+#[derive(BevyObject)]
+#[bevy_object(query)]
+pub struct SerializePotionEid {
     ability: Potion,
     parent: Parented,
-});
+}
 
 type BatchEid = batch!(
     SerializeUnitEid,
