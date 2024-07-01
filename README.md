@@ -16,6 +16,7 @@ Blazingly fast, stateful, structural and human-readable serialization crate for 
 * Supports every serde format using familiar syntax.
 * Serialize `Handle`s and provide a generalized data interning interface.
 * Serialize stored `Entity`s in a safe manner.
+* No reflection needed.
 
 ## Getting Started
 
