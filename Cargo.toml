@@ -3,7 +3,7 @@ members = ["core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.4"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -27,14 +27,14 @@ derive = ["bevy_serde_lens_derive"]
 doctest = false
 
 [dependencies]
-bevy_serde_lens_core = { version = "0.14", path = "./core" }
+bevy_serde_lens_core = { version = "0.14.0-rc.4", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
-bevy_ecs = "0.14.0-rc.2"
-bevy_app = "0.14.0-rc.2"
-bevy_hierarchy = "0.14.0-rc.2"
-bevy_asset = "0.14.0-rc.2"
-bevy_reflect = "0.14.0-rc.2"
+bevy_ecs = "0.14.0-rc.4"
+bevy_app = "0.14.0-rc.4"
+bevy_hierarchy = "0.14.0-rc.4"
+bevy_asset = "0.14.0-rc.4"
+bevy_reflect = "0.14.0-rc.4"
 
 erased-serde = "0.4.3"
 itertools = "0.13.0"
@@ -46,7 +46,7 @@ scoped-tls-hkt = "0.1.4"
 paste = "1.0.14"
 
 [dev-dependencies]
-bevy_scene = "0.14.0-rc.2"
+bevy_scene = "0.14.0-rc.4"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"

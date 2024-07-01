@@ -40,7 +40,7 @@ pub use paste::paste;
 #[doc(hidden)]
 pub use serde;
 
-pub use bevy_serde_lens_core::{with_world, with_world_mut, current_entity};
+pub use bevy_serde_lens_core::{current_entity, with_world, with_world_mut};
 #[cfg(feature = "derive")]
 pub use bevy_serde_lens_derive::BevyObject;
 
@@ -137,13 +137,13 @@ where
     }
 }
 
-/// Make a type usable in in the [`bind_object!`] macro.
+/// Make a type usable in in the [`BevyObject`] macro.
 pub trait BindProject {
     type To: Serialize + DeserializeOwned + ZstInit;
     type Filter: QueryFilter;
 }
 
-/// Make a type usable in in the [`bind_query!`] macro.
+/// Make a type usable in in the [`BevyObject`] macro in `query` mode.
 pub trait BindProjectQuery {
     type Data: QueryData;
 }

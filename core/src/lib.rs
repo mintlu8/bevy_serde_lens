@@ -84,7 +84,7 @@ pub fn current_entity() -> Result<Entity, Error> {
 }
 
 /// Private module for `bevy_serde_lens`.
-/// 
+///
 /// Only use these if you are doing custom serialization without `bevy_serde_lens`.
 /// For example when using some `bevy_serde_lens` only types with `DynamicScene`.
 pub mod private {

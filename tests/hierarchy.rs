@@ -1,9 +1,7 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{
-    batch, BevyObject, ChildVec, EntityId, Maybe, Parented, WorldExtension
-};
+use bevy_serde_lens::{batch, BevyObject, ChildVec, EntityId, Maybe, Parented, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -43,14 +41,14 @@ pub struct SerializeUnit {
     #[serde(default)]
     potions: ChildVec<Potion>,
     #[serde(default)]
-    abilities: ChildVec<SerializeAbility>
+    abilities: ChildVec<SerializeAbility>,
 }
 
 #[derive(BevyObject)]
 
 pub struct SerializeAbility {
     ability: Ability,
-    effects: ChildVec<Effect>
+    effects: ChildVec<Effect>,
 }
 
 #[derive(BevyObject)]

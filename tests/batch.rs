@@ -33,7 +33,7 @@ pub struct AbBundle {
 
 #[derive(Bundle, BevyObject)]
 pub struct ABundle {
-    a: A
+    a: A,
 }
 
 #[derive(Bundle, BevyObject)]

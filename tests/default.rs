@@ -18,13 +18,11 @@ pub struct C {
     a: DefaultInit<A>,
 }
 
-
 #[derive(BevyObject)]
 pub struct D {
     #[serde(skip)]
     a: DefaultInit<A>,
 }
-
 
 #[test]
 pub fn test() {

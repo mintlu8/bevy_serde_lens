@@ -226,7 +226,6 @@ pub struct Archetypal {
     is_dead: IsDead,
 }
 
-
 pub fn bench_ser_archetypal(c: &mut Criterion) {
     let charas = thousand_of::<Character>();
     let bios = thousand_of::<Bio>();

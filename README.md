@@ -15,66 +15,50 @@ Stateful, structural and human-readable serialization crate for the bevy engine.
 * Supports every serde format using familiar syntax.
 * Serialize `Handle`s and provide a generalized data interning interface.
 * Serialize stored `Entity`s in a safe manner.
+* Significantly faster performance than `DynamicScene`.
 
 ## Getting Started
 
-Imagine we want to Serialize an `Entity` Character with some components and children.
+Imagine have a typical `Character` bundle.
+
+First we derive `BevyObject`.
 
 ```rust
-bind_object!(pub struct SerializeCharacter as (With<Character>, Without<NPC>) {
-    character: Character,
-    position: Position,
-    #[serde(default)]
-    weapon: Maybe<Weapon>,
-    #[serde(default)]
-    shield: Maybe<Shield>,
-    #[serde(default)]
-    potions: ChildVec<Potion>,
-})
+#[derive(Bundle, BevyObject)]
+#[bevy_object(query)]
+pub struct Character {
+    pub transform: Transform,
+    pub name: Name,
+    pub position: Position,
+    pub hp: Hp,
+}
 ```
 
-This creates a `BevyObject` that marks entities that satisfies a specific `QueryFilter` as serializable.
+* `#[bevy_object(query)]`
 
-Then call `save` on `World`, where `serializer` is something like `serde_json::Serializer`.
+This indicates we are serializing a query instead of a hierarchical tree, which improves performance.
+
+To serialize we simply do:
 
 ```rust
-// Save
-world.save::<Character>(serializer)
-// Load
-world.load::<Character>(deserializer)
+serde_json::to_string(&world.serialize_lens::<Character>());
 ```
 
-If you prefer more familiar syntax like
+This finds all entities that fits the `QueryFilter` of the bundle and serializes them in an array.
+
+To deserialize we use `deserialize_scope`:
 
 ```rust
-serde_json::to_string(..)
-```
-
-You can create a `SerializeLens`:
-
-```rust
-// `SerializeLens` has a reference to `World` and implements `Serialize`
-let lens = world.serialize_lens::<Character>();
-serde_json::to_string(&lens);
-// This signature works because the world is stored as a thread local
 world.deserialize_scope(|| {
-    // Return object doesn't matter, data is stored in the world
-    let _ = serde_json::from_str::<InWorld<Character>>(&my_string);
-    let _ = serde_json::from_str::<InWorld<Monster>>(&my_string2);
+    // Returned object doesn't matter, data is stored in the world.
+    let _ = serde_json::from_str::<InWorld<Character>>(&json_string);
 })
 ```
 
-This saves a list of Characters as an array:
+This statement spawns new entities in the world and fills them with deserialized data.
 
-```rust
-[
-    { .. },
-    { .. },
-    ..
-]
-```
-
-To delete all associated entities:
+You might want to delete current entities before loading new ones,
+to delete all associated entities of a serialization:
 
 ```rust
 // Despawn all character.
@@ -85,9 +69,9 @@ To save multiple types of objects in a batch, create a batch serialization type 
 
 ```rust
 type SaveFile = batch!(
-    Character, Monster, Terrain,
+    Character, Monster,
     // Use `SerializeResource` to serialize a resource.
-    SerializeResource<MyResource>,
+    SerializeResource<Terrain>,
 );
 world.save::<SaveFile>(serializer)
 world.load::<SaveFile>(deserializer)
@@ -104,18 +88,39 @@ This saves each type in a map entry:
         ..
     ],
     "Monster": [ .. ],
-    "Terrain": [ .. ],
-    "MyResource": ..
+    "Terrain": ..
 }
 ```
 
-## Archetypal Binding
+## Advanced Serialization
 
-`bind_query!` can be used to speed up serialization.
-By default `bind_object` queries the world hierarchically as a tree,
-This sacrifice performance a little bit for prettier outputs.
-If your binding has no `Child` or `ChildVec`, you can use `bind_query!`
-which serializes a `Query` directly.
+`BevyObject` is not just a clone of `Bundle`, we support additional types.
+
+* `impl BevyObject`: Components are automatically `BevyObject` and `BevyObject` can contain multiple other `BevyObject`s.
+* `Maybe<T>` can be used if an item may or may not exist.
+* `DefaultInit` initializes a non-serialize component with `FromWorld`.
+* `Child<T>` finds and serializes a single `BevyObject` in children.
+* `ChildVec<T>` finds and serializes multiple `BevyObject`s in children.
+
+See the `BevyObject` derive macro for more details.
+
+```rust
+// Note we cannot derive bundle anymore :(
+// #[bevy_object(query)] also cannot be used due to children being serialized.
+#[derive(BevyObject)]
+#[bevy_object(rename = "character")]
+pub struct Character {
+    pub transform: Transform,
+    pub name: Name,
+    pub position: Position,
+    pub hp: Hp,
+    #[serde(default)]
+    pub weapon: Maybe<Weapon>
+    #[serde(skip)]
+    pub cache: DefaultInit<Cache>,
+    pub potions: ChildVec<Potion>
+}
+```
 
 ## Projection Types
 
@@ -190,11 +195,17 @@ world.register_deserialize_any(|s: &str|
 )
 ```
 
+## For Library Authors
+
+It is more ideal to depend on `bevy_serde_lens_core` since its semver is less likely
+to change inside a major bevy release cycle.
+
 ## Versions
 
-| bevy | bevy-serde-lens    |
-|------|--------------------|
-| 0.13 | latest             |
+| bevy | bevy-serde-lens-core | bevy-serde-lens    |
+|------|----------------------|--------------------|
+| 0.13 | -                    | 0.1-0.3            |
+| 0.14 | 0.14                 | 0.4                |
 
 ## License
 
