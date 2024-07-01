@@ -1,5 +1,5 @@
 use bevy_app::App;
-use bevy_ecs::{component::Component, world::World};
+use bevy_ecs::{component::Component, reflect::ReflectComponent, world::World};
 use bevy_reflect::{Reflect, TypeRegistration, TypeRegistry};
 use bevy_scene::{serde::SceneDeserializer, DynamicScene};
 use bevy_serde_lens::{BevyObject, InWorld, WorldExtension};
@@ -10,9 +10,11 @@ use rand_derive2::RandGen;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub struct Character(String);
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub struct Bio {
     pub clan: String,
     pub age: u32,
@@ -21,6 +23,7 @@ pub struct Bio {
 }
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub enum Gender {
     Male,
     Female,
@@ -29,12 +32,15 @@ pub enum Gender {
 }
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub struct IsDead(bool);
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub struct Potion(String);
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize, Reflect, RandGen)]
+#[reflect(Component)]
 pub struct Ability(String);
 
 fn thousand_of<T>() -> Vec<T>

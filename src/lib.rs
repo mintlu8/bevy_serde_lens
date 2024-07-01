@@ -21,7 +21,7 @@ pub use entity::{EntityId, Parented};
 
 pub use filter::EntityFilter;
 
-pub(crate) use bevy_serde_lens_core::__private::*;
+pub(crate) use bevy_serde_lens_core::private::*;
 
 #[allow(unused)]
 use bevy_asset::Handle;

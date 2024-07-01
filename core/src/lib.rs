@@ -83,17 +83,22 @@ pub fn current_entity() -> Result<Entity, Error> {
     ENTITY.get().ok_or(Error("No active entity found."))
 }
 
-#[doc(hidden)]
-pub mod __private {
+/// Private module for `bevy_serde_lens`.
+/// 
+/// Only use these if you are doing custom serialization without `bevy_serde_lens`.
+/// For example when using some `bevy_serde_lens` only types with `DynamicScene`.
+pub mod private {
     use bevy_ecs::{entity::Entity, world::World};
 
     use crate::{ENTITY, WORLD, WORLD_MUT};
 
+    /// Setup a `serialize` scope.
     #[inline(always)]
     pub fn ser_scope<T>(world: &World, f: impl FnOnce() -> T) -> T {
         WORLD.set(world, f)
     }
 
+    /// Setup a `deserialize` scope.
     #[inline(always)]
     pub fn de_scope<T>(world: &mut World, f: impl FnOnce() -> T) -> T {
         WORLD_MUT.set(world, f)
@@ -107,6 +112,7 @@ pub mod __private {
         }
     }
 
+    /// Setup an `Entity` scope.
     #[inline(always)]
     pub fn entity_scope<T>(entity: Entity, f: impl FnOnce() -> T) -> T {
         let _entity = DeferredEntity(ENTITY.replace(Some(entity)));
