@@ -4,24 +4,24 @@
 [![Docs](https://docs.rs/bevy_serde_lens/badge.svg)](https://docs.rs/bevy_serde_lens/latest/bevy_serde_lens/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
-Stateful, structural and human-readable serialization crate for the bevy engine.
+Blazingly fast, stateful, structural and human-readable serialization crate for the bevy engine.
 
 ## Features
 
 * Stateful serialization and deserialization with world access.
+* Blazingly fast (compared to `DynamicScene`).
 * Treat an `Entity`, its `Component`s and children as a single serde object.
 * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
 * Extremely lightweight and modular. No systems, no plugins.
 * Supports every serde format using familiar syntax.
 * Serialize `Handle`s and provide a generalized data interning interface.
 * Serialize stored `Entity`s in a safe manner.
-* Significantly faster performance than `DynamicScene`.
 
 ## Getting Started
 
-Imagine have a typical `Character` bundle.
+Imagine we have a typical `Character` bundle.
 
-First we derive `BevyObject`.
+First we derive `BevyObject`:
 
 ```rust
 #[derive(Bundle, BevyObject)]
@@ -152,12 +152,11 @@ We provide a framework to serialize `Entity`, `Parent` etc. Before we start keep
 this only works with a serializer that can preserve the order of maps.
 In `serde_json` for instance, you must enable feature `preserve_order` to use these features.
 
-When using `bind_object!` or `bind_query!`, you can specify the `EntityId` component.
+When using `BevyObject`, we can specify the `EntityId` component.
 This registers the `Entity` id of this entity for future use in the same batch.
 
 **After** the entry, future entities can use `Parented` to parent to this entity,
 or use `EntityPtr` to serialize an `Entity` that references this entity.
-`Parented` can be used in `bind_query` which might made it more performant than `ChildVec`.
 
 ## TypeTag
 
