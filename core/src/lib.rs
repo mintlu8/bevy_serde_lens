@@ -42,7 +42,7 @@ impl std::error::Error for Error {}
 #[inline(always)]
 pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> Result<T, Error> {
     if !WORLD.is_set() {
-        Err(Error("Cannot serialize outside the `save` scope."))
+        Err(Error("Cannot serialize outside a `serialize` scope."))
     } else {
         Ok(WORLD.with(f))
     }
@@ -67,7 +67,7 @@ pub fn with_world<T>(f: impl FnOnce(&World) -> T) -> Result<T, Error> {
 #[inline(always)]
 pub fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> Result<T, Error> {
     if !WORLD_MUT.is_set() {
-        Err(Error("Cannot deserialize outside the `load` scope."))
+        Err(Error("Cannot deserialize outside of a `deserialize` scope."))
     } else {
         Ok(WORLD_MUT.with(f))
     }
@@ -80,7 +80,7 @@ pub fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> Result<T, Error> {
 /// * If used outside `bevy_serde_lens`.
 #[inline(always)]
 pub fn current_entity() -> Result<Entity, Error> {
-    ENTITY.get().ok_or(Error("No active entity found."))
+    ENTITY.get().ok_or(Error("No active entity in serialization found."))
 }
 
 /// Private module for `bevy_serde_lens`.
