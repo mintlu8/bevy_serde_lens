@@ -1,0 +1,9 @@
+[package]
+name = "bevy_serde_lens_gltf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14.0", features = ["serialize"] }
+serde = { version = "1.0.197", features = ["derive"] }
+bevy_serde_lens = { version = "0.4.0", path = "../" }

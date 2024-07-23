@@ -6,14 +6,14 @@ use crate::{
 };
 use bevy_ecs::{
     entity::Entity,
-    query::With,
+    query::{QueryFilter, With},
     system::Resource,
     world::{FromWorld, World},
 };
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnRecursiveExt};
 use bevy_serde_lens_core::{with_world, with_world_mut};
 use serde::{
-    de::{DeserializeOwned, SeqAccess, Visitor},
+    de::{SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
@@ -206,6 +206,59 @@ impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
     }
 }
 
+/// Add an additional dummy [`QueryFilter`] to the [`BevyObject`] derive macro.
+///
+/// Use `#[serde(skip)]` to skip serializing this component completely.
+pub struct AdditionalFilter<T>(PhantomData<T>);
+
+impl<T> Debug for AdditionalFilter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultInit").finish()
+    }
+}
+
+impl<T> ZstInit for AdditionalFilter<T> {
+    fn init() -> Self {
+        Self(PhantomData)
+    }
+}
+
+/// Here to make `#[serde(skip)]` work.
+impl<T: QueryFilter + FromWorld> Default for AdditionalFilter<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T: QueryFilter + FromWorld> BindProject for AdditionalFilter<T> {
+    type To = Self;
+    type Filter = T;
+}
+
+impl<T: QueryFilter + FromWorld> BindProjectQuery for AdditionalFilter<T> {
+    type Data = ();
+}
+
+impl<T: QueryFilter + FromWorld> Serialize for AdditionalFilter<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        ().serialize(serializer)
+    }
+}
+
+impl<'de, T: QueryFilter + FromWorld> Deserialize<'de> for AdditionalFilter<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <()>::deserialize(deserializer)?;
+        Ok(Self(PhantomData))
+    }
+}
+
+
 /// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
 pub struct Root<T>(PhantomData<T>);
 
@@ -289,12 +342,12 @@ impl<T> ZstInit for SerializeComponent<T> {
     }
 }
 
-impl<T: Component + Serialize + DeserializeOwned> BindProject for SerializeComponent<T> {
+impl<T: Component> BindProject for SerializeComponent<T> {
     type To = Self;
     type Filter = With<T>;
 }
 
-impl<T: Component + Serialize + DeserializeOwned> BindProjectQuery for SerializeComponent<T> {
+impl<T: Component> BindProjectQuery for SerializeComponent<T> {
     type Data = &'static T;
 }
 
@@ -574,4 +627,55 @@ impl<'de, T: BevyObject> Visitor<'de> for ChildVec<T> {
 impl<T: BevyObject> BindProject for ChildVec<T> {
     type To = Self;
     type Filter = ();
+}
+
+/// A trait that enables [`AdaptedComponent`] to change the behavior of serialization
+/// and add serialization support to non-serialize types.
+pub trait SerdeAdaptor {
+    type Type;
+
+    fn serialize<S: Serializer>(serializer: S, item: &Self::Type) -> Result<S::Ok, S::Error>;
+    fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self::Type, D::Error>;
+}
+
+/// Apply a [`SerdeAdaptor`] to a [`SerializeComponent<T>`] to change how a component is serialized.
+/// 
+/// # Note
+/// 
+/// Non [`Serialize`] components are not [`BevyObject`], use [`SerializeComponent`] instead.
+pub struct AdaptedComponent<S: SerdeAdaptor>(PhantomData<S::Type>);
+
+impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
+
+    #[doc(hidden)]
+    pub fn serialize<S: Serializer>(_: &SerializeComponent<A::Type>, serializer: S) -> Result<S::Ok, S::Error> {
+        world_entity_scope::<_, S>(|world, entity| {
+            let Some(entity) = world.get_entity(entity) else {
+                return Err(serde::ser::Error::custom(format!(
+                    "Entity missing: {entity:?}."
+                )));
+            };
+            let Some(component) = entity.get::<A::Type>() else {
+                return Err(serde::ser::Error::custom(format!(
+                    "Component missing: {}.",
+                    std::any::type_name::<A::Type>()
+                )));
+            };
+            A::serialize(serializer, component)
+        })?
+    }
+
+    #[doc(hidden)]
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SerializeComponent<A::Type>, D::Error> {
+        let component = A::deserialize(deserializer)?;
+        world_entity_scope_mut::<_, D>(|world, entity| {
+            let Some(mut entity) = world.get_entity_mut(entity) else {
+                return Err(serde::de::Error::custom(format!(
+                    "Entity missing {entity:?}."
+                )));
+            };
+            entity.insert(component);
+            Ok(SerializeComponent(PhantomData))
+        })?
+    }
 }

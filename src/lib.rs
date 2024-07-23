@@ -44,14 +44,16 @@ pub use bevy_serde_lens_core::{current_entity, with_world, with_world_mut};
 #[cfg(feature = "derive")]
 pub use bevy_serde_lens_derive::BevyObject;
 
-fn world_entity_scope<T, S: Serializer>(
+#[doc(hidden)]
+pub fn world_entity_scope<T, S: Serializer>(
     f: impl FnOnce(&World, Entity) -> T,
 ) -> Result<T, S::Error> {
     let entity = current_entity().map_err(serde::ser::Error::custom)?;
     with_world(|w| f(w, entity)).map_err(serde::ser::Error::custom)
 }
 
-fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(
+#[doc(hidden)]
+pub fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(
     f: impl FnOnce(&mut World, Entity) -> T,
 ) -> Result<T, S::Error> {
     let entity = current_entity().map_err(serde::de::Error::custom)?;
@@ -139,7 +141,7 @@ where
 
 /// Make a type usable in in the [`BevyObject`] macro.
 pub trait BindProject {
-    type To: Serialize + DeserializeOwned + ZstInit;
+    type To: ZstInit;
     type Filter: QueryFilter;
 }
 

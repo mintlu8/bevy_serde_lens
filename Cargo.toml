@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "derive"]
+members = ["gltf", "core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
