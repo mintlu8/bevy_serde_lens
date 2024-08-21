@@ -17,7 +17,6 @@ mod filter;
 pub mod interning;
 pub mod typetagged;
 pub use entity::{EntityId, Parented};
-
 pub use filter::EntityFilter;
 
 pub(crate) use bevy_serde_lens_core::private::*;
@@ -35,8 +34,6 @@ pub use bevy_ecs::{
 };
 #[doc(hidden)]
 pub use bevy_reflect::TypePath;
-#[doc(hidden)]
-pub use paste::paste;
 #[doc(hidden)]
 pub use serde;
 
@@ -177,14 +174,6 @@ where
 /// ```
 #[macro_export]
 macro_rules! batch {
-    ($vis: vis type $ty: ident = ($($tt:tt)*)) => {
-        mod paste::paste![<__sealed_ $ty>]{
-            use $crate::Root;
-            use $crate::SerializeResource as Res;
-            $vis type $ty = $crate::batch_inner!($($tt)*);
-        }
-        $vis type $ty = __sealed::$ty;
-    };
     ($($tt:tt)*) => {
         $crate::batch_inner!($($tt)*)
     };

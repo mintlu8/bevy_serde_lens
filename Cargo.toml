@@ -43,7 +43,6 @@ rustc-hash = "2.0.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
-paste = "1.0.14"
 
 [dev-dependencies]
 bevy_scene = "0.14.0"

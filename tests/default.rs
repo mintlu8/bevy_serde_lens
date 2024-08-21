@@ -47,11 +47,11 @@ pub fn test() {
     world.load::<C, _>(json!([{"a": null}])).unwrap();
     assert!(query.get_single(&world).is_ok());
 
-    let value = serde_json::to_value(&world.serialize_lens::<C>()).unwrap();
+    let value = serde_json::to_value(world.serialize_lens::<C>()).unwrap();
 
     assert_eq!(value, json!([{"a": null}]));
 
-    let value = serde_json::to_value(&world.serialize_lens::<D>()).unwrap();
+    let value = serde_json::to_value(world.serialize_lens::<D>()).unwrap();
 
     assert_eq!(value, json!([{}]));
 

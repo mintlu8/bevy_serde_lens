@@ -177,7 +177,7 @@ then
 #[derive(Serialize, Deserialize)]
 struct MyComponent {
     #[serde(with = "TypeTagged")]
-    weapon: Box<dyn Weapon>
+    weapon: Box<dyn Animal>
 }
 ```
 
