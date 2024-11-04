@@ -118,7 +118,7 @@ where
         let mut query = world.query_filtered::<Entity, T::Filter>();
         let queue = query.iter(world).collect::<Vec<_>>();
         for entity in queue {
-            bevy_hierarchy::despawn_with_children_recursive(world, entity);
+            bevy_hierarchy::despawn_with_children_recursive(world, entity, false);
         }
     }
 }

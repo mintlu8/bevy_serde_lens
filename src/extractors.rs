@@ -10,7 +10,7 @@ use bevy_ecs::{
     system::Resource,
     world::{FromWorld, World},
 };
-use bevy_hierarchy::{BuildWorldChildren, Children, DespawnRecursiveExt};
+use bevy_hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
 use bevy_serde_lens_core::{with_world, with_world_mut};
 use serde::{
     de::{SeqAccess, Visitor},
@@ -56,14 +56,14 @@ impl<T: BevyObject> BindProjectQuery for Maybe<T> {
 impl<T: BevyObject> Serialize for Maybe<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| match world.get_entity(entity) {
-            Some(entity_ref) => {
+            Ok(entity_ref) => {
                 if T::filter(&entity_ref) {
                     Some(T::init())
                 } else {
                     None
                 }
             }
-            None => None,
+            Err(_) => None,
         })?
         .serialize(serializer)
     }
@@ -90,7 +90,7 @@ impl<T: BevyObject> BindProject for Maybe<Child<T>> {
 impl<T: BevyObject> Serialize for Maybe<Child<T>> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));
@@ -102,7 +102,7 @@ impl<T: BevyObject> Serialize for Maybe<Child<T>> {
                 )));
             };
             for entity in children {
-                let Some(entity) = world.get_entity(*entity) else {
+                let Ok(entity) = world.get_entity(*entity) else {
                     continue;
                 };
                 if T::filter(&entity) {
@@ -147,7 +147,7 @@ impl<T: Component + FromWorld> Default for DefaultInit<T> {
     fn default() -> Self {
         let _ = world_entity_scope_mut::<_, DummyDeserializer>(|world, entity| {
             let item = T::from_world(world);
-            let Some(mut entity) = world.get_entity_mut(entity) else {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return;
             };
             entity.insert(item);
@@ -171,7 +171,7 @@ impl<T: Component + FromWorld> Serialize for DefaultInit<T> {
         S: serde::Serializer,
     {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing: {entity:?}."
                 )));
@@ -196,7 +196,7 @@ impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
         <()>::deserialize(deserializer)?;
         world_entity_scope_mut::<_, D>(|world, entity| {
             let item = T::from_world(world);
-            let Some(mut entity) = world.get_entity_mut(entity) else {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(serde::de::Error::custom("Entity missing."));
             };
             entity.insert(item);
@@ -258,7 +258,6 @@ impl<'de, T: QueryFilter + FromWorld> Deserialize<'de> for AdditionalFilter<T> {
     }
 }
 
-
 /// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
 pub struct Root<T>(PhantomData<T>);
 
@@ -284,7 +283,7 @@ impl<'de, T: BevyObject> Deserialize<'de> for Root<T> {
 }
 
 fn safe_despawn(world: &mut World, entity: Entity) {
-    if let Some(entity) = world.get_entity_mut(entity) {
+    if let Ok(entity) = world.get_entity_mut(entity) {
         entity.despawn_recursive();
     }
 }
@@ -354,7 +353,7 @@ impl<T: Component> BindProjectQuery for SerializeComponent<T> {
 impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing: {entity:?}."
                 )));
@@ -377,7 +376,7 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
     {
         let component = T::deserialize(deserializer)?;
         world_entity_scope_mut::<_, D>(|world, entity| {
-            let Some(mut entity) = world.get_entity_mut(entity) else {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(serde::de::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));
@@ -499,7 +498,7 @@ impl<T: BevyObject> Serialize for Child<T> {
         S: serde::Serializer,
     {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));
@@ -511,7 +510,7 @@ impl<T: BevyObject> Serialize for Child<T> {
                 )));
             };
             for entity in children {
-                let Some(entity) = world.get_entity(*entity) else {
+                let Ok(entity) = world.get_entity(*entity) else {
                     continue;
                 };
                 if T::filter(&entity) {
@@ -572,7 +571,7 @@ impl<T: BevyObject> Serialize for ChildVec<T> {
     {
         use serde::ser::SerializeSeq;
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));
@@ -583,13 +582,13 @@ impl<T: BevyObject> Serialize for ChildVec<T> {
             };
             let count = children
                 .iter()
-                .filter_map(|e| world.get_entity(*e))
+                .filter_map(|e| world.get_entity(*e).ok())
                 .filter(T::filter)
                 .count();
             let mut seq = serializer.serialize_seq(Some(count))?;
             for entity in children
                 .iter()
-                .filter_map(|e| world.get_entity(*e))
+                .filter_map(|e| world.get_entity(*e).ok())
                 .filter(T::filter)
             {
                 entity_scope(entity.id(), || seq.serialize_element(&T::init()))?;
@@ -639,18 +638,20 @@ pub trait SerdeAdaptor {
 }
 
 /// Apply a [`SerdeAdaptor`] to a [`SerializeComponent<T>`] to change how a component is serialized.
-/// 
+///
 /// # Note
-/// 
+///
 /// Non [`Serialize`] components are not [`BevyObject`], use [`SerializeComponent`] instead.
 pub struct AdaptedComponent<S: SerdeAdaptor>(PhantomData<S::Type>);
 
 impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
-
     #[doc(hidden)]
-    pub fn serialize<S: Serializer>(_: &SerializeComponent<A::Type>, serializer: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(
+        _: &SerializeComponent<A::Type>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing: {entity:?}."
                 )));
@@ -666,10 +667,12 @@ impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
     }
 
     #[doc(hidden)]
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SerializeComponent<A::Type>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<SerializeComponent<A::Type>, D::Error> {
         let component = A::deserialize(deserializer)?;
         world_entity_scope_mut::<_, D>(|world, entity| {
-            let Some(mut entity) = world.get_entity_mut(entity) else {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(serde::de::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));

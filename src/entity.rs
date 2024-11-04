@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 
 use bevy_ecs::{entity::Entity, query::With};
-use bevy_hierarchy::{BuildWorldChildren, Parent};
+use bevy_hierarchy::{BuildChildren, Parent};
 use bevy_serde_lens_core::current_entity;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
@@ -139,7 +139,7 @@ pub struct Parented;
 impl Serialize for Parented {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing: {entity:?}."
                 )));
@@ -159,7 +159,7 @@ impl<'de> Deserialize<'de> for Parented {
             return Err(serde::de::Error::custom("Parent not serialized."));
         };
         world_entity_scope_mut::<_, D>(|world, entity| {
-            let Some(mut entity) = world.get_entity_mut(entity) else {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(serde::de::Error::custom(format!(
                     "Entity missing {entity:?}."
                 )));
@@ -188,7 +188,7 @@ impl BindProjectQuery for Parented {
 impl Serialize for Maybe<Parented> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         world_entity_scope::<_, S>(|world, entity| {
-            let Some(entity) = world.get_entity(entity) else {
+            let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing: {entity:?}."
                 )));
@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for Maybe<Parented> {
         if let Some(original) = original {
             let parent = get_entity::<D>(original)?;
             world_entity_scope_mut::<_, D>(|world, entity| {
-                if let Some(mut entity) = world.get_entity_mut(entity) {
+                if let Ok(mut entity) = world.get_entity_mut(entity) {
                     entity.set_parent(parent);
                     Ok(())
                 } else {

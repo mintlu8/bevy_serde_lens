@@ -1,5 +1,5 @@
 use bevy_ecs::{component::Component, world::World};
-use bevy_hierarchy::BuildWorldChildren;
+use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{batch, BevyObject, ChildVec, EntityId, Maybe, Parented, WorldExtension};
 use serde::{Deserialize, Serialize};
