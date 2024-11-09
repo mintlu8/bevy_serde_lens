@@ -1,6 +1,6 @@
 [package]
 name = "bevy_serde_lens_core"
-version = "0.15.0"
+version = "0.15.0-rc.2"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
