@@ -87,7 +87,7 @@ fn parse_attr_main(
     parent: &mut Option<Path>,
 ) {
     let Meta::List(list) = &attr.meta else { return };
-    if !list.path.get_ident().is_some_and(|i| i == "bevy_object") {
+    if list.path.get_ident().is_none_or(|i| i != "bevy_object") {
         return;
     };
     let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else {

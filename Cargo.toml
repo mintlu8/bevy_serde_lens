@@ -30,11 +30,11 @@ doctest = false
 bevy_serde_lens_core = { version = "0.15.0", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
-bevy_ecs = "0.15.0-rc.2"
-bevy_app = "0.15.0-rc.2"
-bevy_hierarchy = "0.15.0-rc.2"
-bevy_asset = "0.15.0-rc.2"
-bevy_reflect = "0.15.0-rc.2"
+bevy_ecs = "0.15.0"
+bevy_app = "0.15.0"
+bevy_hierarchy = "0.15.0"
+bevy_asset = "0.15.0"
+bevy_reflect = "0.15.0"
 
 erased-serde = "0.4.3"
 itertools = "0.13.0"
@@ -45,7 +45,7 @@ ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
 
 [dev-dependencies]
-bevy_scene = "0.15.0-rc.2"
+bevy_scene = "0.15.0"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"
