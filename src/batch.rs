@@ -76,7 +76,7 @@ pub(crate) struct SerializeWorldLens<'t, S: SerializeWorld> {
     pub(crate) p: PhantomData<S>,
 }
 
-impl<'t, T: SerializeWorld> serde::Serialize for SerializeWorldLens<'t, T> {
+impl<T: SerializeWorld> serde::Serialize for SerializeWorldLens<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
