@@ -4,7 +4,7 @@
 [![Docs](https://docs.rs/bevy_serde_lens/badge.svg)](https://docs.rs/bevy_serde_lens/latest/bevy_serde_lens/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
-Blazingly fast, stateful, structural and human-readable serialization crate for the bevy engine.
+Blazingly fast, schema based human-readable serialization crate for the bevy engine.
 
 ## Features
 
