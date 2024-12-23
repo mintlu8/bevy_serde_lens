@@ -144,7 +144,7 @@ To serialize a `Handle` as its string path, you can use `#[serde(with = "PathHan
 To serialize its content, use `#[serde(with = "UniqueHandle")]`.
 
 ```rust
-#[derive(Serialize, Deserialize)]
+#[derive(Component, Serialize, Deserialize)]
 struct MySprite {
     #[serde(with = "PathHandle")]
     image: Handle<Image>
@@ -154,7 +154,7 @@ struct MySprite {
 Or use the newtype directly.
 
 ```rust
-#[derive(Serialize, Deserialize)]
+#[derive(Component, Serialize, Deserialize)]
 struct MySprite {
     image: PathHandle<Image>
 }

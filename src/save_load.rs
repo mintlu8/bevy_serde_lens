@@ -93,7 +93,9 @@ impl WorldExtension for World {
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self) {
-        T::despawn(self)
+        T::despawn(self);
+        // needed because of hooks.
+        self.flush();
     }
 
     fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self) {
