@@ -9,13 +9,12 @@ Blazingly fast, stateful, structural and human-readable serialization crate for 
 ## Features
 
 * Stateful serialization and deserialization with world access.
+* No systems, no plugins.
 * Blazingly fast (compared to `DynamicScene`).
 * Treat an `Entity`, its `Component`s and children as a single serde object.
 * Deserialize trait objects like `Box<dyn T>`, as an alternative to `typetag`.
-* Extremely lightweight and modular. No systems, no plugins.
 * Supports every serde format using familiar syntax.
 * Serialize `Handle`s and provide a generalized data interning interface.
-* Serialize stored `Entity`s in a safe manner.
 * No reflection needed.
 
 ## Getting Started
@@ -74,8 +73,10 @@ type SaveFile = batch!(
     // Use `SerializeResource` to serialize a resource.
     SerializeResource<Terrain>,
 );
-world.save::<SaveFile>(serializer)
-world.load::<SaveFile>(deserializer)
+world.serialize_lens::<SaveFile>()
+world.deserialize_scope(|| {
+    let _ = serde_json::from_str::<InWorld<SaveFile>>(&json_string);
+})
 world.despawn_bound_objects::<SaveFile>()
 ```
 
@@ -103,10 +104,15 @@ This saves each type in a map entry:
 * `Child<T>` finds and serializes a single `BevyObject` in children.
 * `ChildVec<T>` finds and serializes multiple `BevyObject`s in children.
 
+New in 0.5:
+
+* `Child<T, C>` finds and serializes a single `BevyObject` from a custom children component.
+* `ChildVec<T, C>` finds and serializes multiple `BevyObject`s from a custom children component.
+
 See the `BevyObject` derive macro for more details.
 
 ```rust
-// Note we cannot derive bundle anymore :(
+// Note we cannot derive bundle anymore.
 // #[bevy_object(query)] also cannot be used due to children being serialized.
 #[derive(BevyObject)]
 #[bevy_object(rename = "character")]
@@ -123,12 +129,19 @@ pub struct Character {
 }
 ```
 
-## Projection Types
+## Stateful Serialization
 
-The crate provides various projection types for certain common use cases.
+When using `bevy_serde_lens` you can use `with_world` to access `&World`
+in `Serialize` implementations and `with_world_mut` to access `&mut World`
+in `Deserialize` implementations.
 
-For example, to serialize a `Handle` as its string path,
-you can use `#[serde(with = "PathHandle")]` like so
+These functions actually comes from `bevy_serde_lens_core`
+which is more semver stable and more suited as a dependency for library authors.
+
+## Serialize Handles
+
+To serialize a `Handle` as its string path, you can use `#[serde(with = "PathHandle")]`.
+To serialize its content, use `#[serde(with = "UniqueHandle")]`.
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -146,18 +159,6 @@ struct MySprite {
     image: PathHandle<Image>
 }
 ```
-
-## EntityId
-
-We provide a framework to serialize `Entity`, `Parent` etc. Before we start keep in mind
-this only works with a serializer that can preserve the order of maps.
-In `serde_json` for instance, you must enable feature `preserve_order` to use these features.
-
-When using `BevyObject`, we can specify the `EntityId` component.
-This registers the `Entity` id of this entity for future use in the same batch.
-
-**After** the entry, future entities can use `Parented` to parent to this entity,
-or use `EntityPtr` to serialize an `Entity` that references this entity.
 
 ## TypeTag
 
@@ -195,17 +196,13 @@ world.register_deserialize_any(|s: &str|
 )
 ```
 
-## For Library Authors
-
-It is more ideal to depend on `bevy_serde_lens_core` since its semver is less likely
-to change inside a major bevy release cycle.
-
 ## Versions
 
 | bevy | bevy-serde-lens-core | bevy-serde-lens    |
 |------|----------------------|--------------------|
 | 0.13 | -                    | 0.1-0.3            |
 | 0.14 | 0.14                 | 0.4                |
+| 0.15 | 0.15                 | 0.5-latest         |
 
 ## License
 

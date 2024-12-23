@@ -7,6 +7,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 mod extractors;
 pub use extractors::*;
+mod children;
+pub use children::{Child, ChildVec, ChildrenLike};
 mod batch;
 mod save_load;
 pub use batch::{BatchSerialization, Join, SerializeWorld};
@@ -16,10 +18,9 @@ pub mod entity;
 mod filter;
 pub mod interning;
 pub mod typetagged;
+pub(crate) use bevy_serde_lens_core::private::*;
 pub use entity::{EntityId, Parented};
 pub use filter::EntityFilter;
-
-pub(crate) use bevy_serde_lens_core::private::*;
 
 #[allow(unused)]
 use bevy_asset::Handle;

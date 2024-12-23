@@ -1,12 +1,26 @@
 //! Module for serializing [`Entity`] and hierarchy.
-use std::cell::RefCell;
-
+//!
+//! We provide a framework to serialize `Entity`, `Parent` etc. Before we start keep in mind
+//! this only works with a serializer that can preserve the order of maps.
+//! In `serde_json` for instance, you must enable feature `preserve_order` to use these features.
+//!
+//! When using `BevyObject`, we can specify the [`EntityId`] component.
+//! This registers the [`Entity`] id of this entity for future use in the same batch.
+//!
+//! **After** the entry, future entities can use [`Parented`] to parent to this entity,
+//! or use `EntityPtr` to serialize an `Entity` that references this entity.
+//!
+//! Compared to using [`Child`] or [`ChildVec`], these can be used in a query,
+//! thus improving performance, at the cost of readability.
+#[allow(unused)]
+use crate::{Child, ChildVec};
 use bevy_ecs::{entity::Entity, query::With};
 use bevy_hierarchy::{BuildChildren, Parent};
 use bevy_serde_lens_core::current_entity;
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::RefCell;
 
 use crate::{
     world_entity_scope, world_entity_scope_mut, BindProject, BindProjectQuery, Maybe, ZstInit,

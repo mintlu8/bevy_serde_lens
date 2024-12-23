@@ -1,5 +1,3 @@
-use std::{any::type_name, fmt::Debug, marker::PhantomData};
-
 use crate::{
     entity_scope, world_entity_scope, world_entity_scope_mut, BevyObject, BindProject,
     BindProjectQuery, ZstInit,
@@ -10,12 +8,13 @@ use bevy_ecs::{
     system::Resource,
     world::{FromWorld, World},
 };
-use bevy_hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
+use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy_serde_lens_core::{with_world, with_world_mut};
 use serde::{
     de::{SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use std::{fmt::Debug, marker::PhantomData};
 
 #[allow(unused)]
 use bevy_ecs::component::Component;
@@ -24,7 +23,7 @@ use bevy_ecs::component::Component;
 ///
 /// `#[serde(default)]` can be used to make this optional
 /// if used in self describing formats.
-pub struct Maybe<T>(PhantomData<T>);
+pub struct Maybe<T>(pub(crate) PhantomData<T>);
 
 impl<T> Debug for Maybe<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -72,52 +71,6 @@ impl<T: BevyObject> Serialize for Maybe<T> {
 impl<'de, T: BevyObject> Deserialize<'de> for Maybe<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         <Option<T::Object>>::deserialize(deserializer)?;
-        Ok(Self(PhantomData))
-    }
-}
-
-impl<T: BevyObject> Default for Maybe<Child<T>> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<T: BevyObject> BindProject for Maybe<Child<T>> {
-    type To = Self;
-    type Filter = ();
-}
-
-impl<T: BevyObject> Serialize for Maybe<Child<T>> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            let Some(children) = entity.get::<Children>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "No children found for {}.",
-                    type_name::<T>()
-                )));
-            };
-            for entity in children {
-                let Ok(entity) = world.get_entity(*entity) else {
-                    continue;
-                };
-                if T::filter(&entity) {
-                    return entity_scope(entity.id(), || Some(T::init()).serialize(serializer))
-                        .map_err(serde::ser::Error::custom);
-                }
-            }
-            None::<T::Object>.serialize(serializer)
-        })?
-    }
-}
-
-impl<'de, T: BevyObject> Deserialize<'de> for Maybe<Child<T>> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        <Option<Child<T>>>::deserialize(deserializer)?;
         Ok(Self(PhantomData))
     }
 }
@@ -469,163 +422,6 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
             .map_err(serde::de::Error::custom)?;
         Ok(Self(PhantomData))
     }
-}
-
-/// Extractor for a single [`BevyObject`] in [`Children`]
-/// instead of the entity itself.
-pub struct Child<T>(PhantomData<T>);
-
-impl<T> ZstInit for Child<T> {
-    fn init() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<T> Debug for Child<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Child").finish()
-    }
-}
-
-impl<T: BevyObject> BindProject for Child<T> {
-    type To = Self;
-    type Filter = ();
-}
-
-impl<T: BevyObject> Serialize for Child<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            let Some(children) = entity.get::<Children>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "No children found for {}.",
-                    type_name::<T>()
-                )));
-            };
-            for entity in children {
-                let Ok(entity) = world.get_entity(*entity) else {
-                    continue;
-                };
-                if T::filter(&entity) {
-                    return entity_scope(entity.id(), || T::init().serialize(serializer));
-                }
-            }
-            Err(serde::ser::Error::custom(format!(
-                "No valid children found for {}.",
-                type_name::<T>()
-            )))
-        })?
-    }
-}
-
-impl<'de, T: BevyObject> Deserialize<'de> for Child<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let new_child = world_entity_scope_mut::<_, D>(|world, entity| {
-            let child = world.spawn_empty().id();
-            world.entity_mut(entity).add_child(child);
-            child
-        })?;
-        entity_scope(new_child, || <T::Object>::deserialize(deserializer))
-            .map_err(serde::de::Error::custom)?;
-        Ok(Child(PhantomData))
-    }
-}
-
-/// Extractor for multiple [`BevyObject`]s in [`Children`]
-/// instead of the entity itself. This serializes children like a `Vec`.
-pub struct ChildVec<T>(PhantomData<T>);
-
-impl<T> Debug for ChildVec<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ChildVec").finish()
-    }
-}
-
-impl<T> ZstInit for ChildVec<T> {
-    fn init() -> Self {
-        Self(PhantomData)
-    }
-}
-
-/// This is allowed since `0` is a valid number of children.
-impl<T> Default for ChildVec<T> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<T: BevyObject> Serialize for ChildVec<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeSeq;
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            let children = match entity.get::<Children>() {
-                Some(children) => children.as_ref(),
-                None => &[],
-            };
-            let count = children
-                .iter()
-                .filter_map(|e| world.get_entity(*e).ok())
-                .filter(T::filter)
-                .count();
-            let mut seq = serializer.serialize_seq(Some(count))?;
-            for entity in children
-                .iter()
-                .filter_map(|e| world.get_entity(*e).ok())
-                .filter(T::filter)
-            {
-                entity_scope(entity.id(), || seq.serialize_element(&T::init()))?;
-            }
-            seq.end()
-        })?
-    }
-}
-
-impl<'de, T: BevyObject> Deserialize<'de> for ChildVec<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ChildVec(PhantomData))
-    }
-}
-
-impl<'de, T: BevyObject> Visitor<'de> for ChildVec<T> {
-    type Value = ChildVec<T>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a sequence of entities")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        while seq.next_element::<Child<T>>()?.is_some() {}
-        Ok(ChildVec(PhantomData))
-    }
-}
-
-impl<T: BevyObject> BindProject for ChildVec<T> {
-    type To = Self;
-    type Filter = ();
 }
 
 /// A trait that enables [`AdaptedComponent`] to change the behavior of serialization
