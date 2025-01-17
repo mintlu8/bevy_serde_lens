@@ -1,7 +1,8 @@
 use bevy_ecs::{component::Component, world::World};
+use bevy_reflect::DynamicTypePath;
 use bevy_reflect::TypePath;
+use bevy_serde_lens::typetagged::ErasedObject;
 use bevy_serde_lens::typetagged::TypeTagged;
-use bevy_serde_lens::typetagged::{IntoTypeTagged, TraitObject};
 use bevy_serde_lens::WorldExtension;
 use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
@@ -10,20 +11,8 @@ use serde_json::json;
 macro_rules! impl_animal {
     ($($ty: ident),*) => {
         $(impl Animal for $ty {
-            fn name(&self) -> &'static str {
-                stringify!($ty)
-            }
             fn as_ser(&self) -> &dyn erased_serde::Serialize {
                 self
-            }
-        }
-
-        impl IntoTypeTagged<Box<dyn Animal>> for $ty {
-            fn name() -> impl AsRef<str> {
-                stringify!($ty)
-            }
-            fn into_type_tagged(self) -> Box<dyn Animal> {
-                Box::new(self)
             }
         })*
     };
@@ -34,14 +23,22 @@ macro_rules! boxed_animal {
         val
     }};
 }
-pub trait Animal: Send + Sync + 'static {
-    fn name(&self) -> &'static str;
+pub trait Animal: DynamicTypePath + Send + Sync + 'static {
     fn as_ser(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl TraitObject for dyn Animal {
+impl<T> From<T> for Box<dyn Animal>
+where
+    T: Animal + 'static,
+{
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
+impl ErasedObject for Box<dyn Animal> {
     fn name(&self) -> impl AsRef<str> {
-        self.name()
+        self.as_ref().reflect_short_type_path()
     }
 
     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
@@ -49,15 +46,15 @@ impl TraitObject for dyn Animal {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TypePath)]
 pub struct Bird(String);
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TypePath)]
 pub struct Dog {
     name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TypePath)]
 pub struct Turtle;
 
 impl_animal!(Bird, Dog, Turtle);

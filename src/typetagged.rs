@@ -1,4 +1,4 @@
-//! Module for serializing trait objects.
+//! Module for deserializing artificial objects.
 //!
 //! # Getting Started
 //!
@@ -85,12 +85,10 @@ use serde::{
     Deserialize, Serialize,
 };
 use std::{
-    any::{Any, TypeId},
+    any::{type_name, Any, TypeId},
     borrow::Cow,
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    rc::Rc,
-    sync::Arc,
 };
 
 scoped_tls_hkt::scoped_thread_local! {
@@ -100,9 +98,9 @@ scoped_tls_hkt::scoped_thread_local! {
 /// A serializable trait object.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
-pub struct TypeTagged<T: TraitObject>(pub T);
+pub struct TypeTagged<T: ErasedObject>(pub T);
 
-impl<T: TraitObject> Deref for TypeTagged<T> {
+impl<T: ErasedObject> Deref for TypeTagged<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -110,7 +108,7 @@ impl<T: TraitObject> Deref for TypeTagged<T> {
     }
 }
 
-impl<T: TraitObject> DerefMut for TypeTagged<T> {
+impl<T: ErasedObject> DerefMut for TypeTagged<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -145,9 +143,9 @@ impl<T: TraitObject> DerefMut for TypeTagged<T> {
 /// like `postcard` and will cause an error, be careful when using this in multiple formats.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
-pub struct AnyTagged<T: TraitObject>(pub T);
+pub struct AnyTagged<T: ErasedObject>(pub T);
 
-impl<T: TraitObject> Deref for AnyTagged<T> {
+impl<T: ErasedObject> Deref for AnyTagged<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -155,10 +153,21 @@ impl<T: TraitObject> Deref for AnyTagged<T> {
     }
 }
 
-impl<T: TraitObject> DerefMut for AnyTagged<T> {
+impl<T: ErasedObject> DerefMut for AnyTagged<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DeserializeError {
+    #[error("{function} unimplemented for {ty}.")]
+    Unimplemented {
+        ty: &'static str,
+        function: &'static str,
+    },
+    #[error("{0}")]
+    Custom(String),
 }
 
 /// A trait object like `Box<dyn T>` that is (de)serializable with world access.
@@ -200,48 +209,74 @@ impl<T: TraitObject> DerefMut for AnyTagged<T> {
 ///     app.register_typetag::<Box<dyn<Stat>>, MyStat>   
 /// }
 /// ```
-pub trait TraitObject: 'static {
+#[allow(unused_variables)]
+pub trait ErasedObject: Sized + 'static {
     /// Returns the type name of the implementor.
     fn name(&self) -> impl AsRef<str>;
+
     /// Returns the untagged inner value of the implementor.
-    ///
-    /// # Note
-    ///
-    /// If you used the actual `typetag` crate on your trait, be sure to use
-    /// return a reference to the inner value instead of `dyn YourTrait`.
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
-}
 
-/// A concrete type that implements a [`TraitObject`] trait.
-pub trait FromTypeTagged<T: DeserializeOwned>: TraitObject {
-    /// Type name, must be unique per type and
-    /// must match the output on the corresponding [`TraitObject`]
-    /// when type erased.
-    fn name() -> impl AsRef<str>;
-    /// Convert to a [`TraitObject`] type.
-    fn from_type_tagged(item: T) -> Self;
-}
-
-/// A concrete type that implements a [`TraitObject`] trait.
-pub trait IntoTypeTagged<T: TraitObject>: DeserializeOwned {
-    /// Type name, must be unique per type and
-    /// must match the output on the corresponding [`TraitObject`]
-    /// when type erased.
-    fn name() -> impl AsRef<str>;
-    /// Convert to a [`TraitObject`] type.
-    fn into_type_tagged(self) -> T;
-}
-
-impl<T: TraitObject, U: DeserializeOwned> IntoTypeTagged<T> for U
-where
-    T: FromTypeTagged<U>,
-{
-    fn name() -> impl AsRef<str> {
-        <T as FromTypeTagged<U>>::name()
+    /// If using `deserialize_any` mode, try serialize in an untagged format,
+    /// must match one of the `deserialize_*` functions in this trait.
+    fn try_serialize_any(&self) -> Option<&dyn erased_serde::Serialize> {
+        None
     }
 
-    fn into_type_tagged(self) -> T {
-        T::from_type_tagged(self)
+    fn deserialize_unit() -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_unit",
+        })
+    }
+
+    fn deserialize_bool(value: bool) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_bool",
+        })
+    }
+
+    fn deserialize_uint(value: u64) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_uint",
+        })
+    }
+
+    fn deserialize_int(value: i64) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_int",
+        })
+    }
+
+    fn deserialize_float(value: f64) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_float",
+        })
+    }
+
+    fn deserialize_char(value: char) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_char",
+        })
+    }
+
+    fn deserialize_string(value: &str) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_string",
+        })
+    }
+
+    fn deserialize_bytes(value: &[u8]) -> Result<Self, DeserializeError> {
+        Err(DeserializeError::Unimplemented {
+            ty: type_name::<Self>(),
+            function: "deserialize_bytes",
+        })
     }
 }
 
@@ -251,18 +286,10 @@ type DeserializeFn<T> = fn(&mut dyn erased_serde::Deserializer) -> Result<T, era
 #[derive(Resource, Default)]
 pub struct TypeTagServer {
     functions: FxHashMap<(TypeId, Cow<'static, str>), Box<dyn Any + Send + Sync>>,
-    deserialize_unit: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_bool: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_int: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_uint: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_float: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_char: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_str: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    deserialize_bytes: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl TypeTagServer {
-    pub fn get<T: TraitObject>(&self, name: &str) -> Option<DeserializeFn<T>> {
+    pub fn get<T: ErasedObject>(&self, name: &str) -> Option<DeserializeFn<T>> {
         let id = TypeId::of::<T>();
         self.functions
             .get(&(id, Cow::Borrowed(name)))
@@ -272,160 +299,28 @@ impl TypeTagServer {
 
     pub fn clear(&mut self) {
         self.functions.clear();
-        self.deserialize_unit.clear();
-        self.deserialize_bool.clear();
-        self.deserialize_int.clear();
-        self.deserialize_uint.clear();
-        self.deserialize_float.clear();
-        self.deserialize_char.clear();
-        self.deserialize_str.clear();
-        self.deserialize_bytes.clear();
     }
 
-    pub fn register<T: TraitObject, A: IntoTypeTagged<T>>(&mut self) {
+    pub fn register<T: ErasedObject, A: Into<T> + DeserializeOwned + TypePath>(&mut self) {
         let id = TypeId::of::<T>();
-        let de_fn: DeserializeFn<T> =
-            |de| Ok(A::into_type_tagged(erased_serde::deserialize::<A>(de)?));
+        let de_fn: DeserializeFn<T> = |de| Ok(erased_serde::deserialize::<A>(de)?.into());
         self.functions.insert(
-            (id, Cow::Owned(A::name().as_ref().to_owned())),
+            (id, Cow::Owned(A::short_type_path().to_owned())),
             Box::new(de_fn),
         );
     }
-}
 
-mod sealed {
-    pub trait Sealed<E> {}
-}
-
-use sealed::Sealed;
-
-/// Function that deserializes a primitive.
-///
-/// # Syntax
-///
-/// ```
-/// # /*
-/// fn(TraitObject) -> Result<T, String>
-/// # */
-/// ```
-///
-/// # Supported types
-///
-/// `bool`, `i64`, `u64`, `f64`, `char`, `&str`, `&[u8]`
-pub trait DeserializeAnyFn<T, E>: Sealed<E> {
-    fn register(self, server: &mut TypeTagServer);
-}
-
-macro_rules! impl_de_any_fn {
-    ($($in: ty, $out: ident, $name: ident);*;) => {
-        $(
-            type $name<T> = Box<dyn Fn($in) -> Result<T, String> + Send + Sync + 'static>;
-            impl<T: TraitObject, F> Sealed<$in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
-            }
-            impl<T: TraitObject, F> DeserializeAnyFn<T, $in> for F where F: Fn($in) -> Result<T, String> + Send + Sync + 'static{
-                fn register(self, server: &mut TypeTagServer) {
-                    let id = TypeId::of::<T>();
-                    server.$out.insert(id, Box::new(Box::new(self) as $name<T>));
-                }
-            }
-        )*
-    };
-}
-
-impl_de_any_fn!(
-    bool, deserialize_bool, DeserializeBoolFn;
-    i64, deserialize_int, DeserializeIntFn;
-    u64, deserialize_uint, DeserializeUIntFn;
-    f64, deserialize_float, DeserializeFloatFn;
-    char, deserialize_char, DeserializeCharFn;
-    &str, deserialize_str, DeserializeStrFn;
-    &[u8], deserialize_bytes, DeserializeBytesFn;
-);
-
-type DeserializeUnitFn<T> = Box<dyn Fn() -> Result<T, String> + Send + Sync + 'static>;
-
-impl<T: 'static, F> Sealed<()> for F where F: Fn() -> Result<T, String> + Send + Sync + 'static {}
-
-impl<T: 'static, F> DeserializeAnyFn<T, ()> for F
-where
-    F: Fn() -> Result<T, String> + Send + Sync + 'static,
-{
-    fn register(self, server: &mut TypeTagServer) {
+    pub fn register_by_name<T: ErasedObject, A: Into<T> + DeserializeOwned>(&mut self, name: &str) {
         let id = TypeId::of::<T>();
-        server
-            .deserialize_unit
-            .insert(id, Box::new(Box::new(self) as DeserializeUnitFn<T>));
-    }
-}
-
-impl TypeTagServer {
-    pub fn register_deserialize_any<T: TraitObject, Marker>(
-        &mut self,
-        f: impl DeserializeAnyFn<T, Marker>,
-    ) {
-        f.register(self)
-    }
-
-    pub fn get_unit<T: TraitObject>(&self) -> Option<&DeserializeUnitFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_unit
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_bool<T: TraitObject>(&self) -> Option<&DeserializeBoolFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_bool
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_int<T: TraitObject>(&self) -> Option<&DeserializeIntFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_int
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_uint<T: TraitObject>(&self) -> Option<&DeserializeUIntFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_uint
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_float<T: 'static>(&self) -> Option<&DeserializeFloatFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_float
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_char<T: 'static>(&self) -> Option<&DeserializeCharFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_char
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_str<T: 'static>(&self) -> Option<&DeserializeStrFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_str
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
-    }
-
-    pub fn get_bytes<T: 'static>(&self) -> Option<&DeserializeBytesFn<T>> {
-        let id = TypeId::of::<T>();
-        self.deserialize_bytes
-            .get(&id)
-            .map(|f| f.downcast_ref().unwrap())
+        let de_fn: DeserializeFn<T> = |de| Ok(erased_serde::deserialize::<A>(de)?.into());
+        self.functions
+            .insert((id, Cow::Owned(name.to_owned())), Box::new(de_fn));
     }
 }
 
 impl<V> serde::Serialize for TypeTagged<V>
 where
-    V: TraitObject,
+    V: ErasedObject,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -440,7 +335,7 @@ where
 
 impl<V> serde::Serialize for AnyTagged<V>
 where
-    V: TraitObject,
+    V: ErasedObject,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -453,7 +348,7 @@ where
     }
 }
 
-impl<'de, V: TraitObject> serde::Deserialize<'de> for TypeTagged<V> {
+impl<'de, V: ErasedObject> serde::Deserialize<'de> for TypeTagged<V> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -464,7 +359,7 @@ impl<'de, V: TraitObject> serde::Deserialize<'de> for TypeTagged<V> {
     }
 }
 
-impl<'de, V: TraitObject> serde::Deserialize<'de> for AnyTagged<V> {
+impl<'de, V: ErasedObject> serde::Deserialize<'de> for AnyTagged<V> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -475,9 +370,9 @@ impl<'de, V: TraitObject> serde::Deserialize<'de> for AnyTagged<V> {
     }
 }
 
-struct TypeTaggedVisitor<'de, V: TraitObject>(PhantomData<&'de V>);
+struct TypeTaggedVisitor<'de, V: ErasedObject>(PhantomData<&'de V>);
 
-impl<'de, V: TraitObject> Visitor<'de> for TypeTaggedVisitor<'de, V> {
+impl<'de, V: ErasedObject> Visitor<'de> for TypeTaggedVisitor<'de, V> {
     type Value = V;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -509,158 +404,62 @@ impl<'de, V: TraitObject> Visitor<'de> for TypeTaggedVisitor<'de, V> {
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_unit::<V>().map(|f| f())) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_unit unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_unit().map_err(serde::de::Error::custom)
     }
 
     fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_bool::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_bool unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_bool(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_int::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_i64 unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_int(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_uint::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_u64 unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_uint(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_float::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_f64 unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_float(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_char<E>(self, v: char) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_char::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_char unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_char(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_str::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_str unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_string(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        if !TYPETAG_SERVER.is_set() {
-            return Err(serde::de::Error::custom(
-                "cannot deserialize `TypeTagged` value outside the `save` context.",
-            ));
-        }
-        match TYPETAG_SERVER.with(|map| map.get_bytes::<V>().map(|f| f(v))) {
-            Some(Ok(result)) => Ok(result),
-            Some(Err(error)) => Err(serde::de::Error::custom(error)),
-            None => Err(serde::de::Error::custom(format!(
-                "deserialize_bytes unregistered for {}",
-                std::any::type_name::<V>(),
-            ))),
-        }
+        V::deserialize_bytes(v).map_err(serde::de::Error::custom)
     }
 }
 
-struct DeserializeFnSeed<'de, T: TraitObject>(DeserializeFn<T>, PhantomData<&'de ()>);
+struct DeserializeFnSeed<'de, T: ErasedObject>(DeserializeFn<T>, PhantomData<&'de ()>);
 
-impl<'de, T: TraitObject> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
+impl<'de, T: ErasedObject> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
     type Value = T;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -671,130 +470,7 @@ impl<'de, T: TraitObject> DeserializeSeed<'de> for DeserializeFnSeed<'de, T> {
     }
 }
 
-impl<T> TraitObject for Box<T>
-where
-    T: TraitObject + ?Sized,
-{
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> TraitObject for Rc<T>
-where
-    T: TraitObject + ?Sized,
-{
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> TraitObject for Arc<T>
-where
-    T: TraitObject + ?Sized,
-{
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T> TraitObject for Cow<'static, T>
-where
-    T: TraitObject + ToOwned + ?Sized,
-    T::Owned: Send + Sync + 'static,
-{
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-/// A basic trait object that satisfies [`TraitObject`].
-///
-/// All [`TypePath`] and [`Serialize`] types automatically implements this.
-pub trait TaggedAny: Any + Send + Sync + 'static {
-    fn name(&self) -> &'static str;
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
-}
-
-impl<T> TaggedAny for T
-where
-    T: Serialize + TypePath + Send + Sync + 'static,
-{
-    fn name(&self) -> &'static str {
-        T::short_type_path()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self
-    }
-}
-
-impl TraitObject for dyn TaggedAny {
-    fn name(&self) -> impl AsRef<str> {
-        TaggedAny::name(self)
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        TaggedAny::as_serialize(self)
-    }
-}
-
-impl<T> FromTypeTagged<T> for Box<dyn TaggedAny>
-where
-    T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static,
-{
-    fn name() -> impl AsRef<str> {
-        T::short_type_path()
-    }
-
-    fn from_type_tagged(item: T) -> Self {
-        Box::new(item)
-    }
-}
-
-impl<T> FromTypeTagged<T> for Rc<dyn TaggedAny>
-where
-    T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static,
-{
-    fn name() -> impl AsRef<str> {
-        T::short_type_path()
-    }
-
-    fn from_type_tagged(item: T) -> Self {
-        Rc::new(item)
-    }
-}
-
-impl<T> FromTypeTagged<T> for Arc<dyn TaggedAny>
-where
-    T: Serialize + DeserializeOwned + TypePath + Send + Sync + 'static,
-{
-    fn name() -> impl AsRef<str> {
-        T::short_type_path()
-    }
-
-    fn from_type_tagged(item: T) -> Self {
-        Arc::new(item)
-    }
-}
-
-impl<T: TraitObject> TypeTagged<T> {
+impl<T: ErasedObject> TypeTagged<T> {
     /// Serialize with [`TypeTagged`].
     pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
         TypeTagged::ref_cast(item).serialize(serializer)
@@ -806,7 +482,7 @@ impl<T: TraitObject> TypeTagged<T> {
     }
 }
 
-impl<T: TraitObject> AnyTagged<T> {
+impl<T: ErasedObject> AnyTagged<T> {
     /// Serialize with [`AnyTagged`].
     pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
         AnyTagged::ref_cast(item).serialize(serializer)

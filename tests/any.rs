@@ -1,21 +1,75 @@
 #![allow(clippy::approx_constant)]
 use bevy_ecs::{component::Component, world::World};
-use bevy_reflect::TypePath;
-use bevy_serde_lens::typetagged::AnyTagged;
-use bevy_serde_lens::typetagged::TaggedAny;
+use bevy_reflect::{DynamicTypePath, TypePath};
+use bevy_serde_lens::typetagged::ErasedObject;
+use bevy_serde_lens::typetagged::{AnyTagged, DeserializeError};
 use bevy_serde_lens::WorldExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-pub type Any = Box<dyn TaggedAny>;
+
+pub trait MyAny: DynamicTypePath + Send + Sync {
+    fn as_ser(&self) -> &dyn erased_serde::Serialize;
+}
+
+impl<T> MyAny for T
+where
+    T: DynamicTypePath + erased_serde::Serialize + Send + Sync,
+{
+    fn as_ser(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+}
+
+impl<T: MyAny + 'static> From<T> for Box<dyn MyAny> {
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
+macro_rules! impl_deserialize_any {
+    ($($ty: ty, $fn: ident,)*) => {
+        $(
+            fn $fn(value: $ty) -> Result<Self, DeserializeError> {
+                Ok(Box::new(value))
+            }
+        )*
+    };
+}
+
+impl ErasedObject for Box<dyn MyAny> {
+    fn name(&self) -> impl AsRef<str> {
+        self.reflect_short_type_path()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ser()
+    }
+
+    impl_deserialize_any! {
+        bool, deserialize_bool,
+        i64, deserialize_int,
+        u64, deserialize_uint,
+        f64, deserialize_float,
+        char, deserialize_char,
+    }
+
+    fn deserialize_unit() -> Result<Self, DeserializeError> {
+        Ok(Box::new(()))
+    }
+
+    fn deserialize_string(value: &str) -> Result<Self, DeserializeError> {
+        Ok(Box::new(value.to_owned()))
+    }
+}
 
 #[derive(Component, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
 pub struct AnyComponent {
     #[serde(with = "AnyTagged")]
-    any: Any,
+    any: Box<dyn MyAny>,
 }
 
-fn any(v: impl TaggedAny) -> AnyComponent {
+fn any(v: impl MyAny + 'static) -> AnyComponent {
     AnyComponent { any: Box::new(v) }
 }
 
@@ -36,13 +90,6 @@ pub struct Character {
 #[test]
 pub fn test() {
     let mut world = World::new();
-    world.register_deserialize_any(|| Ok(Box::new(()) as Any));
-    world.register_deserialize_any(|x: i64| Ok(Box::new(x) as Any));
-    world.register_deserialize_any(|x: u64| Ok(Box::new(x) as Any));
-    world.register_deserialize_any(|x: f64| Ok(Box::new(x) as Any));
-    world.register_deserialize_any(|x: bool| Ok(Box::new(x) as Any));
-    world.register_deserialize_any(|x: char| Ok(Box::new(x) as Any));
-    world.register_deserialize_any(|x: &str| Ok(Box::new(x.to_owned()) as Any));
 
     world.load::<AnyComponent, _>(json!([69])).unwrap();
 
@@ -79,8 +126,8 @@ pub fn test() {
 
     world.despawn_bound_objects::<AnyComponent>();
 
-    world.register_typetag::<Any, Color>();
-    world.register_typetag::<Any, Character>();
+    world.register_typetag::<Box<dyn MyAny>, Color>();
+    world.register_typetag::<Box<dyn MyAny>, Character>();
 
     world
         .load::<AnyComponent, _>(json!([

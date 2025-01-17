@@ -21,9 +21,7 @@ fn on_remove_hook_one<const C: char>(mut world: DeferredWorld, entity: Entity, _
     };
     let entity = child.0;
     let mut commands = world.commands();
-    commands.queue(move |w: &mut World| {
-        w.entity_mut(entity).despawn_recursive()
-    });
+    commands.queue(move |w: &mut World| w.entity_mut(entity).despawn_recursive());
 }
 
 impl<const C: char> ChildrenLike for CustomChild<C> {

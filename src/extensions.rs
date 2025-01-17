@@ -1,11 +1,10 @@
 use crate::entity::EID_MAP;
-use crate::typetagged::{
-    DeserializeAnyFn, IntoTypeTagged, TraitObject, TypeTagServer, TYPETAG_SERVER,
-};
+use crate::typetagged::{ErasedObject, TypeTagServer, TYPETAG_SERVER};
 use crate::{de_scope, BatchSerialization};
 use bevy_app::App;
 use bevy_ecs::world::World;
-use serde::de::DeserializeSeed;
+use bevy_reflect::TypePath;
+use serde::de::{DeserializeOwned, DeserializeSeed};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
 use std::sync::Mutex;
@@ -45,18 +44,17 @@ pub trait WorldExtension {
     fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T;
     /// Despawn all entities in a [`BatchSerialization`] type recursively.
     fn despawn_bound_objects<T: BatchSerialization>(&mut self);
-    /// Register a type that can be deserialized dynamically.
-    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self);
-    /// Register a type that can be deserialized dynamically from a primitive.
+    /// Register a type that can be deserialized via a type tag.
     ///
-    /// Accepts a `Fn(T) -> Result<Out, String>` where T is `()`, `bool`, `i64`, `u64`, `f64`, `char`, `&str` or `&[u8]`.
+    /// The name of the type is [`TypePath::short_type_path`] and must be unique.
+    fn register_typetag<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>(&mut self);
+    /// Register a type that can be deserialized via a type tag.
     ///
-    /// # Example
-    /// ```
-    /// // deserialize number as the default attacking type
-    /// app.register_deserialize_any(|x: i64| Ok(DefaultAttack::new(x as i32)));
-    /// ```
-    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>);
+    /// The name of the type is specified by the caller.
+    fn register_typetag_by_name<A: ErasedObject, B: Into<A> + DeserializeOwned>(
+        &mut self,
+        name: &str,
+    );
 }
 
 impl WorldExtension for World {
@@ -98,14 +96,17 @@ impl WorldExtension for World {
         self.flush();
     }
 
-    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self) {
+    fn register_typetag<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>(&mut self) {
         let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
         server.register::<A, B>()
     }
 
-    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
+    fn register_typetag_by_name<A: ErasedObject, B: Into<A> + DeserializeOwned>(
+        &mut self,
+        name: &str,
+    ) {
         let mut server = self.get_resource_or_insert_with(TypeTagServer::default);
-        server.register_deserialize_any::<T, O>(f)
+        server.register_by_name::<A, B>(name)
     }
 }
 
@@ -140,12 +141,15 @@ impl WorldExtension for App {
         self.world_mut().despawn_bound_objects::<T>()
     }
 
-    fn register_typetag<A: TraitObject, B: IntoTypeTagged<A>>(&mut self) {
+    fn register_typetag<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>(&mut self) {
         self.world_mut().register_typetag::<A, B>()
     }
 
-    fn register_deserialize_any<T: TraitObject, O>(&mut self, f: impl DeserializeAnyFn<T, O>) {
-        self.world_mut().register_deserialize_any::<T, O>(f)
+    fn register_typetag_by_name<A: ErasedObject, B: Into<A> + DeserializeOwned>(
+        &mut self,
+        name: &str,
+    ) {
+        self.world_mut().register_typetag_by_name::<A, B>(name)
     }
 }
 
