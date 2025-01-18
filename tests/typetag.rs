@@ -1,9 +1,10 @@
+use bevy_ecs::component::StorageType;
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::DynamicTypePath;
 use bevy_reflect::TypePath;
 use bevy_serde_lens::typetagged::ErasedObject;
 use bevy_serde_lens::typetagged::TypeTagged;
-use bevy_serde_lens::WorldExtension;
+use bevy_serde_lens::{BevyObject, Maybe, WorldExtension};
 use postcard::ser_flavors::Flavor;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -154,4 +155,72 @@ pub fn test() {
             {"animal": {"Turtle": null}},
         ])
     );
+}
+
+impl TypePath for Box<dyn Animal> {
+    fn type_path() -> &'static str {
+        "Animal"
+    }
+
+    fn short_type_path() -> &'static str {
+        "Animal"
+    }
+}
+
+impl Component for Box<dyn Animal> {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+}
+
+#[derive(BevyObject)]
+#[serde(transparent)]
+pub struct SerializeAnimal {
+    pub animal: TypeTagged<Box<dyn Animal>>,
+}
+
+#[derive(BevyObject)]
+pub struct SerializeAnimalMaybe {
+    pub animal: Maybe<TypeTagged<Box<dyn Animal>>>,
+}
+#[test]
+pub fn test2() {
+    let mut world = World::new();
+    world.spawn(Box::new(Dog {
+        name: "Loki".into(),
+    }) as Box<dyn Animal>);
+    world.spawn(Box::new(Dog {
+        name: "Bella".into(),
+    }) as Box<dyn Animal>);
+    world.register_typetag::<Box<dyn Animal>, Dog>();
+
+    let value = world
+        .save::<SerializeAnimal, _>(serde_json::value::Serializer)
+        .unwrap();
+
+    assert_eq!(
+        value,
+        json!([
+            {
+                "Dog": {
+                    "name": "Loki"
+                }
+            },
+            {
+                "Dog": {
+                    "name": "Bella"
+                }
+            },
+        ])
+    );
+
+    world.despawn_bound_objects::<SerializeAnimal>();
+
+    world.load::<SerializeAnimal, _>(&value).unwrap();
+
+    assert_eq!(world.entities().len(), 2);
+
+    let value2 = world
+        .save::<SerializeAnimal, _>(serde_json::value::Serializer)
+        .unwrap();
+
+    assert_eq!(value, value2);
 }

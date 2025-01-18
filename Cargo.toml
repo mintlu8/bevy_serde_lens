@@ -3,7 +3,7 @@ members = ["core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]

@@ -1,5 +1,6 @@
 use crate::entity::EID_MAP;
-use crate::typetagged::{ErasedObject, TypeTagServer, TYPETAG_SERVER};
+use crate::typetagged::TYPETAG_SERVER;
+use crate::typetagged::{ErasedObject, TypeTagServer};
 use crate::{de_scope, BatchSerialization};
 use bevy_app::App;
 use bevy_ecs::world::World;

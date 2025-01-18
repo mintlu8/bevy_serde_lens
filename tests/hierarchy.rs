@@ -1,7 +1,11 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{batch, BevyObject, ChildVec, EntityId, Maybe, Parented, WorldExtension};
+use bevy_serde_lens::{
+    batch,
+    entity::{EntityId, Parented},
+    BevyObject, ChildVec, Maybe, WorldExtension,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

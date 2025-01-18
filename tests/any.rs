@@ -2,7 +2,7 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::{DynamicTypePath, TypePath};
 use bevy_serde_lens::typetagged::ErasedObject;
-use bevy_serde_lens::typetagged::{AnyTagged, DeserializeError};
+use bevy_serde_lens::typetagged::{AnyOrTagged, DeserializeError};
 use bevy_serde_lens::WorldExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -65,7 +65,7 @@ impl ErasedObject for Box<dyn MyAny> {
 #[derive(Component, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
 pub struct AnyComponent {
-    #[serde(with = "AnyTagged")]
+    #[serde(with = "AnyOrTagged")]
     any: Box<dyn MyAny>,
 }
 

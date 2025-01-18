@@ -19,7 +19,6 @@ mod filter;
 pub mod interning;
 pub mod typetagged;
 pub(crate) use bevy_serde_lens_core::private::*;
-pub use entity::{EntityId, Parented};
 pub use filter::EntityFilter;
 
 #[allow(unused)]
@@ -85,7 +84,7 @@ pub trait BevyObject {
     const IS_QUERY: bool;
     /// If specified and `IS_QUERY` is set,
     /// will use a query directly for serialization if is the root node.
-    /// The user is responsible to making sure this roundtrips
+    /// The user is responsible for making sure this roundtrips
     /// since this does not affect deserialization.
     type Data: QueryData;
     /// Checks which entities the filter applies to.
@@ -113,7 +112,7 @@ pub trait BevyObject {
         Self::Filter::filter(entity)
     }
 
-    /// Convert `Data` to a serializable.
+    /// Convert `Data` to a serializable, must specify if `IS_QUERY`.
     #[allow(unused_variables)]
     fn into_ser(query_data: Item<'_, Self>) -> impl Serialize {}
 }

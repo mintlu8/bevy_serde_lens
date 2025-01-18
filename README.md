@@ -4,7 +4,7 @@
 [![Docs](https://docs.rs/bevy_serde_lens/badge.svg)](https://docs.rs/bevy_serde_lens/latest/bevy_serde_lens/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
-Blazingly fast, schema based human-readable serialization crate for the bevy engine.
+Blazingly fast, schema based and human-readable serialization crate for the bevy engine.
 
 ## Features
 
@@ -162,39 +162,8 @@ struct MySprite {
 
 ## TypeTag
 
-The `typetag` crate allows you to serialize trait objects like `Box<dyn T>`,
-but using `typetag` will always
-pull in all implementations linked to your build and does not work on WASM.
-To address these limitations this crate allows you to register deserializers manually
-in the bevy `World` and use the `TypeTagged` projection type for serialization.
-
-```rust
-world.register_typetag::<Box<dyn Animal>, Cat>()
-```
-
-then
-
-```rust
-#[derive(Serialize, Deserialize)]
-struct MyComponent {
-    #[serde(with = "TypeTagged")]
-    weapon: Box<dyn Animal>
-}
-```
-
-To have user friendly configuration files,
-you can use `register_deserialize_any` and `AnyTagged` to allow `deserialize_any`, i.e.
-deserialize `42` instead of `{"int": 42}` in self-describing formats.
-Keep in mind using `AnyTagged` in a non-self-describing format like `postcard` will always return an error
-as this is a limitation of the serde specification.
-
-```rust
-world.register_deserialize_any(|s: &str| 
-    Ok(Box::new(s.parse::<Cat>()
-        .map_err(|e| e.to_string())?
-    ) as Box<dyn Animal>)
-)
-```
+We provide registration based deserialization as an alternative to the `typetag` crate.
+See the `typetagged` module for details.
 
 ## Versions
 
