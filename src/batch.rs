@@ -159,7 +159,7 @@ where
     }
 }
 
-#[doc(hidden)]
+/// Join two [`BatchSerialization`] types.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Join<A, B>(PhantomData<(A, B)>);
 

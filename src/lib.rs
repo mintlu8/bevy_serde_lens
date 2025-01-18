@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 use bevy_ecs::component::Component;
 use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
 use bevy_ecs::world::EntityRef;
@@ -20,6 +21,9 @@ pub mod interning;
 pub mod typetagged;
 pub(crate) use bevy_serde_lens_core::private::*;
 pub use filter::EntityFilter;
+#[cfg(any(feature = "linkme", doc))]
+#[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
+pub mod linking;
 
 #[allow(unused)]
 use bevy_asset::Handle;

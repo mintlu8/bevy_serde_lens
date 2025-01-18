@@ -26,6 +26,10 @@ derive = ["bevy_serde_lens_derive"]
 [lib]
 doctest = false
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 bevy_serde_lens_core = { version = "0.15.0", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
@@ -43,6 +47,7 @@ rustc-hash = "2.0.0"
 thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
+linkme = { version = "0.3.31", optional = true }
 
 [dev-dependencies]
 bevy_scene = "0.15.0"
