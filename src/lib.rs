@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 use bevy_ecs::component::Component;
-use bevy_ecs::query::{QueryData, QueryFilter, WorldQuery};
+use bevy_ecs::query::{QueryData, QueryFilter};
 use bevy_ecs::world::EntityRef;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -15,7 +15,6 @@ mod extensions;
 pub use batch::{BatchSerialization, Join, SerializeWorld};
 pub use extensions::{DeserializeLens, InWorld, SerializeLens, WorldExtension};
 pub mod asset;
-pub mod entity;
 mod filter;
 pub mod interning;
 pub mod typetagged;
@@ -28,7 +27,7 @@ pub mod linking;
 #[allow(unused)]
 use bevy_asset::Handle;
 #[allow(unused)]
-use bevy_hierarchy::Children;
+use bevy_ecs::hierarchy::Children;
 
 #[doc(hidden)]
 pub use bevy_ecs::{
@@ -70,10 +69,10 @@ pub trait ZstInit: Sized {
 }
 
 #[doc(hidden)]
-pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
+pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as QueryData>::Item<'t>;
 #[doc(hidden)]
 pub type BindItem<'t, T> =
-    <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as WorldQuery>::Item<'t>;
+    <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as QueryData>::Item<'t>;
 
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///

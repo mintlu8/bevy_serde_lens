@@ -5,10 +5,9 @@ use crate::{
 use bevy_ecs::{
     entity::Entity,
     query::{QueryFilter, With},
-    system::Resource,
+    resource::Resource,
     world::{FromWorld, World},
 };
-use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy_serde_lens_core::{with_world, with_world_mut};
 use serde::{
     de::{SeqAccess, Visitor},
@@ -237,7 +236,7 @@ impl<'de, T: BevyObject> Deserialize<'de> for Root<T> {
 
 fn safe_despawn(world: &mut World, entity: Entity) {
     if let Ok(entity) = world.get_entity_mut(entity) {
-        entity.despawn_recursive();
+        entity.despawn();
     }
 }
 

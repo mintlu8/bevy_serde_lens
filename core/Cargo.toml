@@ -1,6 +1,6 @@
 [package]
 name = "bevy_serde_lens_core"
-version = "0.15.1"
+version = "0.16.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -15,5 +15,5 @@ World access module for bevy_serde_lens.
 keywords = ["bevy", "serde", "serialize", "save"]
 
 [dependencies]
-bevy_ecs = "0.15.0"
+bevy_ecs = "0.16.0-rc.3"
 scoped-tls-hkt = "0.1.4"

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, convert::Infallible};
 
-use bevy_ecs::{component::Component, system::Resource, world::World};
+use bevy_ecs::{component::Component, resource::Resource, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
     interning::{Interned, Interner, InterningKey},

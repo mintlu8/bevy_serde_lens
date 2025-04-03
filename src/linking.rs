@@ -17,7 +17,8 @@ pub type Func = fn(&mut World);
 pub static DESERIALIZER_PLUGINS: [fn(&mut World)];
 
 /// Create a function to use with [`DESERIALIZER_PLUGINS`].
-pub const fn as_deserialize_plugin<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>() -> fn(&mut World) {
+pub const fn as_deserialize_plugin<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>(
+) -> fn(&mut World) {
     |world| {
         world.register_typetag::<A, B>();
     }
@@ -35,7 +36,7 @@ impl Plugin for LinkDeserializersPlugin {
 }
 
 /// Link types to be registered with [`LinkDeserializersPlugin`].
-/// 
+///
 /// # Example
 /// ```
 /// link_deserializer!(Cat => Box<dyn Animal>);

@@ -1,11 +1,11 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::EntityWorldMut;
-use bevy_hierarchy::{BuildChildren, Children};
+use bevy_ecs::hierarchy::Children;
 use bevy_serde_lens_core::private::entity_scope;
 use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::convert::Infallible;
 use std::fmt::{Debug, Display};
 use std::{any::type_name, marker::PhantomData};
 
@@ -23,15 +23,14 @@ pub trait ChildrenLike: Component + Sized {
     fn add_child(parent: EntityWorldMut, child: Entity) -> Result<(), impl Display>;
 }
 
-impl ChildrenLike for Children {
+impl<T> ChildrenLike for T where T: RelationshipTarget {
     fn iter_children(&self) -> impl Iterator<Item = Entity> {
-        self.as_ref().iter().copied()
+        T::iter(self)
     }
 
-    #[allow(refining_impl_trait)]
     fn add_child(mut parent: EntityWorldMut, child: Entity) -> Result<(), impl Display> {
-        parent.add_child(child);
-        Ok::<_, Infallible>(())
+        parent.add_related::<T::Relationship>(&[child]);
+        Ok::<(), &'static str>(())
     }
 }
 

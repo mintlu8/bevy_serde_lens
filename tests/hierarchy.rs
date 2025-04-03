@@ -1,9 +1,6 @@
 use bevy_ecs::{component::Component, world::World};
-use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{
-    batch,
-    entity::{EntityId, Parented},
     BevyObject, ChildVec, Maybe, WorldExtension,
 };
 use serde::{Deserialize, Serialize};
@@ -54,46 +51,6 @@ pub struct SerializeAbility {
     ability: Ability,
     effects: ChildVec<Effect>,
 }
-
-#[derive(BevyObject)]
-#[bevy_object(query)]
-pub struct SerializeUnitEid {
-    entity: EntityId,
-    unit: Unit,
-    #[serde(default)]
-    weapon: Maybe<Weapon>,
-    #[serde(default)]
-    armor: Maybe<Armor>,
-}
-
-#[derive(BevyObject)]
-#[bevy_object(query)]
-pub struct SerializeAbilityEid {
-    entity: EntityId,
-    ability: Ability,
-    parent: Parented,
-}
-
-#[derive(BevyObject)]
-#[bevy_object(query)]
-pub struct SerializeEffectEid {
-    effect: Effect,
-    parent: Parented,
-}
-
-#[derive(BevyObject)]
-#[bevy_object(query)]
-pub struct SerializePotionEid {
-    ability: Potion,
-    parent: Parented,
-}
-
-type BatchEid = batch!(
-    SerializeUnitEid,
-    SerializeAbilityEid,
-    SerializeEffectEid,
-    SerializePotionEid,
-);
 
 #[test]
 pub fn test() {
@@ -195,13 +152,6 @@ pub fn test() {
     assert_eq!(world.entities().len(), 0);
 
     world.load::<SerializeUnit, _>(&validation).unwrap();
-
-    let value = world
-        .save::<BatchEid, _>(serde_json::value::Serializer)
-        .unwrap();
-    world.despawn_bound_objects::<SerializeUnit>();
-    assert_eq!(world.entities().len(), 0);
-    world.load::<BatchEid, _>(&value).unwrap();
 
     let value = world
         .save::<SerializeUnit, _>(serde_json::value::Serializer)

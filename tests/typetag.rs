@@ -1,4 +1,4 @@
-use bevy_ecs::component::StorageType;
+use bevy_ecs::component::{Mutable, StorageType};
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::DynamicTypePath;
 use bevy_reflect::TypePath;
@@ -169,6 +169,7 @@ impl TypePath for Box<dyn Animal> {
 
 impl Component for Box<dyn Animal> {
     const STORAGE_TYPE: StorageType = StorageType::Table;
+    type Mutability = Mutable;
 }
 
 #[derive(BevyObject)]

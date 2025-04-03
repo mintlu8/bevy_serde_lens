@@ -51,7 +51,7 @@ use std::{
 };
 
 /// A serializable trait object of an [`ErasedObject`].
-/// 
+///
 /// Serialization is done in [`ErasedObject`]
 /// and deserialization is done via registered deserializers.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]

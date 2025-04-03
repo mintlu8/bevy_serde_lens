@@ -1,7 +1,7 @@
 use crate::{
     entity_scope, ser_scope, BevyObject, Root, SerializeNonSend, SerializeResource, ZstInit,
 };
-use bevy_ecs::{entity::Entity, system::Resource, world::World};
+use bevy_ecs::{entity::Entity, resource::Resource, world::World};
 use bevy_reflect::TypePath;
 use serde::{
     de::{DeserializeOwned, MapAccess, Visitor},
@@ -118,7 +118,7 @@ where
         let mut query = world.query_filtered::<Entity, T::Filter>();
         let queue = query.iter(world).collect::<Vec<_>>();
         for entity in queue {
-            bevy_hierarchy::despawn_with_children_recursive(world, entity, false);
+            let _ = world.despawn(entity);
         }
     }
 }

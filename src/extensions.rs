@@ -1,4 +1,3 @@
-use crate::entity::EID_MAP;
 use crate::typetagged::TYPETAG_SERVER;
 use crate::typetagged::{ErasedObject, TypeTagServer};
 use crate::{de_scope, BatchSerialization};
@@ -70,7 +69,6 @@ impl WorldExtension for World {
         &mut self,
         deserializer: D,
     ) -> Result<(), D::Error> {
-        EID_MAP.with(|m| m.borrow_mut().clear());
         self.init_resource::<TypeTagServer>();
         self.resource_scope::<TypeTagServer, _>(|world, server| {
             TYPETAG_SERVER.set(&server, || {
@@ -176,7 +174,6 @@ impl<'de, T: BatchSerialization> DeserializeSeed<'de> for DeserializeLens<'de, T
     where
         D: Deserializer<'de>,
     {
-        EID_MAP.with(|m| m.borrow_mut().clear());
         self.0.load::<T, D>(deserializer)
     }
 }
@@ -191,7 +188,6 @@ impl<'de, T: BatchSerialization> Deserialize<'de> for InWorld<T> {
     where
         D: Deserializer<'de>,
     {
-        EID_MAP.with(|m| m.borrow_mut().clear());
         T::De::deserialize(deserializer)?;
         Ok(Self(PhantomData))
     }

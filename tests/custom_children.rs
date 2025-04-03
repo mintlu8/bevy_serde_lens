@@ -1,11 +1,10 @@
 use std::convert::Infallible;
 
 use bevy_ecs::{
-    component::{Component, ComponentId},
+    component::{Component, HookContext},
     entity::Entity,
     world::{DeferredWorld, EntityWorldMut, World},
 };
-use bevy_hierarchy::DespawnRecursiveExt;
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{BevyObject, Child, ChildVec, ChildrenLike, Maybe, WorldExtension};
 use serde::{Deserialize, Serialize};
@@ -15,13 +14,13 @@ use serde_json::json;
 #[component(on_remove = on_remove_hook_one::<C>)]
 pub struct CustomChild<const C: char>(Entity);
 
-fn on_remove_hook_one<const C: char>(mut world: DeferredWorld, entity: Entity, _: ComponentId) {
-    let Some(child) = world.entity(entity).get::<CustomChild<C>>() else {
+fn on_remove_hook_one<const C: char>(mut world: DeferredWorld, cx: HookContext) {
+    let Some(child) = world.entity(cx.entity).get::<CustomChild<C>>() else {
         return;
     };
     let entity = child.0;
     let mut commands = world.commands();
-    commands.queue(move |w: &mut World| w.entity_mut(entity).despawn_recursive());
+    commands.queue(move |w: &mut World| w.entity_mut(entity).despawn());
 }
 
 impl<const C: char> ChildrenLike for CustomChild<C> {
@@ -43,15 +42,15 @@ impl<const C: char> ChildrenLike for CustomChild<C> {
 #[component(on_remove = on_remove_hook::<C>)]
 pub struct CustomChildren<const C: char>(Vec<Entity>);
 
-fn on_remove_hook<const C: char>(mut world: DeferredWorld, entity: Entity, _: ComponentId) {
-    let Some(children) = world.entity(entity).get::<CustomChildren<C>>() else {
+fn on_remove_hook<const C: char>(mut world: DeferredWorld, cx: HookContext) {
+    let Some(children) = world.entity(cx.entity).get::<CustomChildren<C>>() else {
         return;
     };
     let v = children.0.clone();
     let mut commands = world.commands();
     commands.queue(move |w: &mut World| {
         for entity in v {
-            w.entity_mut(entity).despawn_recursive()
+            w.entity_mut(entity).despawn()
         }
     });
 }

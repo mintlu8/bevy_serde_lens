@@ -3,7 +3,7 @@ use std::any::type_name;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use bevy_ecs::system::Resource;
+use bevy_ecs::resource::Resource;
 use ref_cast::RefCast;
 use serde::Deserialize;
 use serde::Deserializer;

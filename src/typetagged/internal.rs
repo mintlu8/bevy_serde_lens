@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use bevy_ecs::system::Resource;
+use bevy_ecs::resource::Resource;
 use bevy_reflect::TypePath;
 use erased_serde::Deserializer;
 use rustc_hash::FxHashMap;
