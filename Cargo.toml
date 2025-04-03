@@ -3,7 +3,7 @@ members = ["core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
-version = "0.6.0"
+version = "0.6.0-rc.3"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -31,7 +31,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-bevy_serde_lens_core = { version = "0.16.0", path = "./core" }
+bevy_serde_lens_core = { version = "0.16.0-rc.3", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
 bevy_ecs = "0.16.0-rc.3"
