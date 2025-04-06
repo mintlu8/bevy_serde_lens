@@ -5,7 +5,6 @@ use bevy_ecs::query::{QueryData, QueryFilter};
 use bevy_ecs::world::EntityRef;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde::{Deserializer, Serializer};
 mod extractors;
 pub use extractors::*;
 mod children;
@@ -14,11 +13,12 @@ mod batch;
 mod extensions;
 pub use batch::{BatchSerialization, Join, SerializeWorld};
 pub use extensions::{DeserializeLens, InWorld, SerializeLens, WorldExtension};
+mod adjacent;
+pub use adjacent::{Adjacent, SerializeAdjacent};
 pub mod asset;
 mod filter;
 pub mod interning;
 pub mod typetagged;
-pub(crate) use bevy_serde_lens_core::private::*;
 pub use filter::EntityFilter;
 #[cfg(any(feature = "linkme", doc))]
 #[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
@@ -40,25 +40,9 @@ pub use bevy_reflect::TypePath;
 #[doc(hidden)]
 pub use serde;
 
-pub use bevy_serde_lens_core::{current_entity, with_world, with_world_mut};
+pub use bevy_serde_lens_core::{DeUtils, SerUtils};
 #[cfg(feature = "derive")]
 pub use bevy_serde_lens_derive::BevyObject;
-
-#[doc(hidden)]
-pub fn world_entity_scope<T, S: Serializer>(
-    f: impl FnOnce(&World, Entity) -> T,
-) -> Result<T, S::Error> {
-    let entity = current_entity().map_err(serde::ser::Error::custom)?;
-    with_world(|w| f(w, entity)).map_err(serde::ser::Error::custom)
-}
-
-#[doc(hidden)]
-pub fn world_entity_scope_mut<'de, T, S: Deserializer<'de>>(
-    f: impl FnOnce(&mut World, Entity) -> T,
-) -> Result<T, S::Error> {
-    let entity = current_entity().map_err(serde::de::Error::custom)?;
-    with_world_mut(|w| f(w, entity)).map_err(serde::de::Error::custom)
-}
 
 /// Equivalent to [`Default`], indicates the type should be a marker ZST, not a concrete type.
 ///

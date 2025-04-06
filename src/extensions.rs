@@ -1,9 +1,10 @@
 use crate::typetagged::TYPETAG_SERVER;
 use crate::typetagged::{ErasedObject, TypeTagServer};
-use crate::{de_scope, BatchSerialization};
+use crate::BatchSerialization;
 use bevy_app::App;
 use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
+use bevy_serde_lens_core::ScopeUtils;
 use serde::de::{DeserializeOwned, DeserializeSeed};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
@@ -72,7 +73,8 @@ impl WorldExtension for World {
         self.init_resource::<TypeTagServer>();
         self.resource_scope::<TypeTagServer, _>(|world, server| {
             TYPETAG_SERVER.set(&server, || {
-                de_scope(world, || T::De::deserialize(deserializer)).map(|_| ())
+                ScopeUtils::deserialize_scope(world, || T::De::deserialize(deserializer))
+                    .map(|_| ())
             })
         })
     }
@@ -86,7 +88,7 @@ impl WorldExtension for World {
     }
 
     fn deserialize_scope<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        de_scope(self, f)
+        ScopeUtils::deserialize_scope(self, f)
     }
 
     fn despawn_bound_objects<T: BatchSerialization>(&mut self) {

@@ -1,15 +1,15 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::hierarchy::Children;
 use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::EntityWorldMut;
-use bevy_ecs::hierarchy::Children;
-use bevy_serde_lens_core::private::entity_scope;
+use bevy_serde_lens_core::{DeUtils, ScopeUtils, SerUtils};
 use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display};
 use std::{any::type_name, marker::PhantomData};
 
-use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, BindProject, Maybe, ZstInit};
+use crate::{BevyObject, BindProject, Maybe, ZstInit};
 
 /// Types that references one or many entities similar to [`Children`].
 pub trait ChildrenLike: Component + Sized {
@@ -17,13 +17,14 @@ pub trait ChildrenLike: Component + Sized {
     ///
     /// If only one child exists, use [`std::iter::once`].
     fn iter_children(&self) -> impl Iterator<Item = Entity>;
-    /// Function that add child to parent, like [`BuildChildren::add_child`].
-    ///
-    /// Keep in mind this is responsible for initializing components as well.
+    /// Function that add child to parent, like [`EntityWorldMut::add_related`].
     fn add_child(parent: EntityWorldMut, child: Entity) -> Result<(), impl Display>;
 }
 
-impl<T> ChildrenLike for T where T: RelationshipTarget {
+impl<T> ChildrenLike for T
+where
+    T: RelationshipTarget,
+{
     fn iter_children(&self) -> impl Iterator<Item = Entity> {
         T::iter(self)
     }
@@ -60,7 +61,8 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for Child<T, C> {
     where
         S: serde::Serializer,
     {
-        world_entity_scope::<_, S>(|world, entity| {
+        let entity = SerUtils::current_entity::<S>()?;
+        SerUtils::with_world::<S, _>(|world| {
             let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
@@ -77,7 +79,9 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for Child<T, C> {
                     continue;
                 };
                 if T::filter(&entity) {
-                    return entity_scope(entity.id(), || T::init().serialize(serializer));
+                    return ScopeUtils::current_entity_scope(entity.id(), || {
+                        T::init().serialize(serializer)
+                    });
                 }
             }
             Err(serde::ser::Error::custom(format!(
@@ -93,12 +97,13 @@ impl<'de, T: BevyObject, C: ChildrenLike> Deserialize<'de> for Child<T, C> {
     where
         D: serde::Deserializer<'de>,
     {
-        let new_child = world_entity_scope_mut::<_, D>(|world, entity| {
+        let entity = DeUtils::current_entity::<D>()?;
+        let new_child = DeUtils::with_world_mut::<D, _>(|world| {
             let child = world.spawn_empty().id();
             C::add_child(world.entity_mut(entity), child).map_err(serde::de::Error::custom)?;
             Ok(child)
         })??;
-        entity_scope(new_child, || <T::Object>::deserialize(deserializer))
+        ScopeUtils::current_entity_scope(new_child, || <T::Object>::deserialize(deserializer))
             .map_err(serde::de::Error::custom)?;
         Ok(Child(PhantomData))
     }
@@ -117,7 +122,8 @@ impl<T, C> BindProject for Maybe<Child<T, C>> {
 
 impl<T: BevyObject, C: ChildrenLike> Serialize for Maybe<Child<T, C>> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope::<_, S>(|world, entity| {
+        let entity = SerUtils::current_entity::<S>()?;
+        SerUtils::with_world::<S, _>(|world| {
             let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
@@ -131,8 +137,10 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for Maybe<Child<T, C>> {
                     continue;
                 };
                 if T::filter(&entity) {
-                    return entity_scope(entity.id(), || Some(T::init()).serialize(serializer))
-                        .map_err(serde::ser::Error::custom);
+                    return ScopeUtils::current_entity_scope(entity.id(), || {
+                        Some(T::init()).serialize(serializer)
+                    })
+                    .map_err(serde::ser::Error::custom);
                 }
             }
             None::<T::Object>.serialize(serializer)
@@ -178,7 +186,8 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for ChildVec<T, C> {
         S: serde::Serializer,
     {
         use serde::ser::SerializeSeq;
-        world_entity_scope::<_, S>(|world, entity| {
+        let entity = SerUtils::current_entity::<S>()?;
+        SerUtils::with_world::<S, _>(|world| {
             let Ok(entity) = world.get_entity(entity) else {
                 return Err(serde::ser::Error::custom(format!(
                     "Entity missing {entity:?}."
@@ -198,7 +207,9 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for ChildVec<T, C> {
                 .filter_map(|e| world.get_entity(e).ok())
                 .filter(T::filter)
             {
-                entity_scope(entity.id(), || seq.serialize_element(&T::init()))?;
+                ScopeUtils::current_entity_scope(entity.id(), || {
+                    seq.serialize_element(&T::init())
+                })?;
             }
             seq.end()
         })?
