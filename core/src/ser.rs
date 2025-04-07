@@ -12,6 +12,16 @@ use std::fmt::Display;
 /// Useful commands for serialization.
 pub struct SerUtils(Infallible);
 
+macro_rules! validate_world {
+    () => {
+        if !WORLD.is_set() {
+            return Err(SError::custom(
+                "Cannot serialize outside of a `serialize` scope.",
+            ));
+        }
+    };
+}
+
 impl SerUtils {
     /// Run a function on a read only reference to [`World`].
     ///
@@ -21,13 +31,8 @@ impl SerUtils {
     /// * If used outside `bevy_serde_lens`.
     #[inline(always)]
     pub fn with_world<S: Serializer, T>(f: impl FnOnce(&World) -> T) -> Result<T, S::Error> {
-        if !WORLD.is_set() {
-            Err(SError::custom(
-                "Cannot serialize outside a `serialize` scope.",
-            ))
-        } else {
-            Ok(WORLD.with(f))
-        }
+        validate_world!();
+        Ok(WORLD.with(f))
     }
 
     /// Obtain the current [`Entity`] in `bevy_serde_lens`.
@@ -45,14 +50,10 @@ impl SerUtils {
     pub fn with_entity_ref<S: Serializer, T>(
         f: impl FnOnce(EntityRef) -> T,
     ) -> Result<T, S::Error> {
+        validate_world!();
         let Some(entity) = ENTITY.get() else {
             return Err(SError::custom("No active entity in serialization found."));
         };
-        if !WORLD.is_set() {
-            return Err(SError::custom(
-                "Cannot deserialize outside of a `deserialize` scope.",
-            ));
-        }
         WORLD.with(|world| {
             world
                 .get_entity(entity)
@@ -64,14 +65,10 @@ impl SerUtils {
     pub fn with_query<C: ReadOnlyQueryData, S: Serializer, T>(
         f: impl FnOnce(C::Item<'_>) -> T,
     ) -> Result<T, S::Error> {
+        validate_world!();
         let Some(entity) = ENTITY.get() else {
             return Err(SError::custom("No active entity in serialization found."));
         };
-        if !WORLD.is_set() {
-            return Err(SError::custom(
-                "Cannot deserialize outside of a `deserialize` scope.",
-            ));
-        }
         WORLD.with(|world| {
             world
                 .get_entity(entity)
@@ -85,14 +82,10 @@ impl SerUtils {
     pub fn with_component<C: Component, S: Serializer, T>(
         f: impl FnOnce(&C) -> T,
     ) -> Result<T, S::Error> {
+        validate_world!();
         let Some(entity) = ENTITY.get() else {
             return Err(SError::custom("No active entity in serialization found."));
         };
-        if !WORLD.is_set() {
-            return Err(SError::custom(
-                "Cannot deserialize outside of a `deserialize` scope.",
-            ));
-        }
         WORLD.with(|world| {
             world
                 .get_entity(entity)
@@ -106,11 +99,7 @@ impl SerUtils {
     pub fn with_resource<R: Resource, S: Serializer, T>(
         f: impl FnOnce(&R) -> T,
     ) -> Result<T, S::Error> {
-        if !WORLD.is_set() {
-            return Err(SError::custom(
-                "Cannot deserialize outside of a `deserialize` scope.",
-            ));
-        }
+        validate_world!();
         WORLD.with(|world| {
             world
                 .get_resource::<R>()
@@ -122,11 +111,7 @@ impl SerUtils {
     pub fn with_non_send_resource<R: 'static, S: Serializer, T>(
         f: impl FnOnce(&R) -> T,
     ) -> Result<T, S::Error> {
-        if !WORLD.is_set() {
-            return Err(SError::custom(
-                "Cannot deserialize outside of a `deserialize` scope.",
-            ));
-        }
+        validate_world!();
         WORLD.with(|world| {
             world
                 .get_non_send_resource::<R>()

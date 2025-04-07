@@ -1,15 +1,12 @@
 use crate::{BevyObject, BindProject, BindProjectQuery, ZstInit};
 use bevy_ecs::{
-    entity::Entity,
     query::{QueryFilter, With},
     resource::Resource,
-    world::{FromWorld, World},
+    world::FromWorld,
 };
-use bevy_serde_lens_core::{DeUtils, ScopeUtils, SerUtils};
-use serde::{
-    de::{SeqAccess, Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use bevy_serde_lens_core::{DeUtils, SerUtils};
+use bevy_state::state::{FreelyMutableState, NextState, State};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Debug, marker::PhantomData};
 
 #[allow(unused)]
@@ -190,75 +187,6 @@ impl<'de, T: QueryFilter + FromWorld> Deserialize<'de> for AdditionalFilter<T> {
     }
 }
 
-/// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
-pub struct Root<T>(PhantomData<T>);
-
-impl<T> Debug for Root<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Root").finish()
-    }
-}
-
-impl<T> ZstInit for Root<T> {
-    fn init() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<'de, T: BevyObject> Deserialize<'de> for Root<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(Root(PhantomData))
-    }
-}
-
-fn safe_despawn(world: &mut World, entity: Entity) {
-    if let Ok(entity) = world.get_entity_mut(entity) {
-        entity.despawn();
-    }
-}
-
-impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
-    type Value = Root<T>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a sequence of entities")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        loop {
-            let entity = DeUtils::with_world_mut_seq::<A, _>(|world| {
-                let entity = world.spawn_empty().id();
-                if let Some(mut root) = T::get_root(world) {
-                    root.add_child(entity);
-                }
-                entity
-            })?;
-            match ScopeUtils::current_entity_scope(entity, || seq.next_element::<T::Object>()) {
-                Err(err) => {
-                    DeUtils::with_world_mut_seq::<A, _>(|world| {
-                        safe_despawn(world, entity);
-                    })?;
-                    return Err(err);
-                }
-                Ok(None) => {
-                    DeUtils::with_world_mut_seq::<A, _>(|world| {
-                        safe_despawn(world, entity);
-                    })?;
-                    break;
-                }
-                Ok(Some(_)) => {}
-            }
-        }
-        Ok(Root(PhantomData))
-    }
-}
-
 /// Serialize a component on the active entity.
 pub struct SerializeComponent<T>(PhantomData<T>);
 
@@ -363,6 +291,40 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
         let resource = T::deserialize(deserializer)?;
         DeUtils::with_world_mut::<D, _>(|world| {
             world.insert_non_send_resource(resource);
+        })?;
+        Ok(Self(PhantomData))
+    }
+}
+
+/// Serialize a resource on the active world.
+pub struct SerializeState<T>(PhantomData<T>);
+
+impl<T> Debug for SerializeState<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerializeState").finish()
+    }
+}
+
+impl<T> ZstInit for SerializeState<T> {
+    fn init() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T: FreelyMutableState + Serialize> Serialize for SerializeState<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SerUtils::with_resource::<State<T>, S, _>(|resource| resource.get().serialize(serializer))?
+    }
+}
+
+impl<'de, T: FreelyMutableState + Deserialize<'de>> Deserialize<'de> for SerializeState<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let new_state = T::deserialize(deserializer)?;
+        DeUtils::with_resource_mut::<NextState<T>, D, _>(|mut state| {
+            state.set(new_state);
         })?;
         Ok(Self(PhantomData))
     }

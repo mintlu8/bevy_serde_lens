@@ -6,7 +6,6 @@ use bevy_serde_lens::{Adjacent, BevyObject, DeUtils, SerializeAdjacent, WorldExt
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::json;
 
-
 #[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
 pub struct SerializeInt(u8);
@@ -18,7 +17,7 @@ impl SerializeAdjacent<&Anything> for &SerializeInt {
     fn name() -> &'static str {
         "Anything"
     }
-    
+
     fn serialize_adjacent<S: Serializer>(
         this: &&SerializeInt,
         other: &&Anything,
@@ -29,10 +28,10 @@ impl SerializeAdjacent<&Anything> for &SerializeInt {
             2 => other.0.downcast_ref::<u16>().unwrap().serialize(serializer),
             4 => other.0.downcast_ref::<u32>().unwrap().serialize(serializer),
             8 => other.0.downcast_ref::<u64>().unwrap().serialize(serializer),
-            _ => Err(serde::ser::Error::custom("Expected 1, 2, 4, 8"))
+            _ => Err(serde::ser::Error::custom("Expected 1, 2, 4, 8")),
         }
     }
-    
+
     fn deserialize_adjacent<'de, D: serde::Deserializer<'de>>(
         this: &&SerializeInt,
         deserializer: D,
@@ -42,7 +41,7 @@ impl SerializeAdjacent<&Anything> for &SerializeInt {
             2 => DeUtils::insert::<D>(Anything(Box::new(u16::deserialize(deserializer)?))),
             4 => DeUtils::insert::<D>(Anything(Box::new(u32::deserialize(deserializer)?))),
             8 => DeUtils::insert::<D>(Anything(Box::new(u64::deserialize(deserializer)?))),
-            _ => Err(serde::de::Error::custom("Expected 1, 2, 4, 8"))
+            _ => Err(serde::de::Error::custom("Expected 1, 2, 4, 8")),
         }
     }
 }
@@ -57,24 +56,14 @@ struct Ints {
 fn adjacent_test() {
     let mut world = World::new();
 
-    world.spawn((
-        SerializeInt(1),
-        Anything(Box::new(4u8))
-    ));
-    world.spawn((
-        SerializeInt(2),
-        Anything(Box::new(6u16))
-    ));
-    world.spawn((
-        SerializeInt(4),
-        Anything(Box::new(12u32))
-    ));
-    world.spawn((
-        SerializeInt(8),
-        Anything(Box::new(82u64))
-    ));
+    world.spawn((SerializeInt(1), Anything(Box::new(4u8))));
+    world.spawn((SerializeInt(2), Anything(Box::new(6u16))));
+    world.spawn((SerializeInt(4), Anything(Box::new(12u32))));
+    world.spawn((SerializeInt(8), Anything(Box::new(82u64))));
 
-    let value = world.save::<Ints, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<Ints, _>(serde_json::value::Serializer)
+        .unwrap();
     let expected_result = json!([
         {
             "len": 1,

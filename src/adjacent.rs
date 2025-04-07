@@ -9,29 +9,29 @@ use crate::{BevyObject, ZstInit};
 type RItem<'t, T> = <<T as QueryData>::ReadOnly as QueryData>::Item<'t>;
 
 /// Serialize another [`QueryData`] on the same entity.
-/// 
+///
 /// # Note
-/// 
+///
 /// Components in this [`QueryData`] must be (de)serialized first.
 pub trait SerializeAdjacent<A: QueryData>: QueryData {
     fn name() -> &'static str;
 
     fn serialize_adjacent<S: Serializer>(
-        this: &RItem<'_, Self>,
-        other: &RItem<'_, A>,
+        this: &<Self::ReadOnly as QueryData>::Item<'_>,
+        other: &<A::ReadOnly as QueryData>::Item<'_>,
         serializer: S,
     ) -> Result<S::Ok, S::Error>;
 
     fn deserialize_adjacent<'de, D: Deserializer<'de>>(
-        this: &RItem<'_, Self>,
+        this: &<Self::ReadOnly as QueryData>::Item<'_>,
         deserializer: D,
     ) -> Result<(), D::Error>;
 }
 
 /// Serialize another [`QueryData`] on the same entity, using [`SerializeAdjacent`].
-/// 
+///
 /// # Note
-/// 
+///
 /// Components in this [`QueryData`] must be (de)serialized first.
 #[derive(Debug)]
 pub struct Adjacent<A: SerializeAdjacent<B>, B: QueryData>(PhantomData<(A, B)>);

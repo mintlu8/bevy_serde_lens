@@ -38,6 +38,7 @@ bevy_ecs = "0.16.0-rc.3"
 bevy_app = "0.16.0-rc.3"
 bevy_asset = "0.16.0-rc.3"
 bevy_reflect = "0.16.0-rc.3"
+bevy_state = "0.16.0-rc.3"
 
 erased-serde = "0.4.3"
 itertools = "0.13.0"

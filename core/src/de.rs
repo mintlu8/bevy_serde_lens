@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::query::ReadOnlyQueryData;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityWorldMut, Mut, World};
-use serde::de::{Error as DError, SeqAccess};
+use serde::de::Error as DError;
 use serde::Deserializer;
 use std::convert::Infallible;
 use std::fmt::Display;
@@ -49,9 +49,7 @@ impl DeUtils {
     }
 
     #[doc(hidden)]
-    pub fn with_world_mut_seq<'de, S: SeqAccess<'de>, T>(
-        f: impl FnOnce(&mut World) -> T,
-    ) -> Result<T, S::Error> {
+    pub fn with_world_mut_err<D: DError, T>(f: impl FnOnce(&mut World) -> T) -> Result<T, D> {
         validate_world!();
         Ok(WORLD_MUT.with(f))
     }
@@ -71,6 +69,20 @@ impl DeUtils {
     pub fn with_entity_mut<'de, D: Deserializer<'de>, T>(
         f: impl FnOnce(EntityWorldMut) -> T,
     ) -> Result<T, D::Error> {
+        validate_world!();
+        let Some(entity) = ENTITY.get() else {
+            return Err(DError::custom("No active entity in serialization found."));
+        };
+        WORLD_MUT.with(|world| {
+            world
+                .get_entity_mut(entity)
+                .map(f)
+                .map_err(|_| DError::custom("Entity missing."))
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn with_entity_mut_err<D: DError, T>(f: impl FnOnce(EntityWorldMut) -> T) -> Result<T, D> {
         validate_world!();
         let Some(entity) = ENTITY.get() else {
             return Err(DError::custom("No active entity in serialization found."));

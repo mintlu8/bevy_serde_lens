@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display};
 use std::{any::type_name, marker::PhantomData};
 
+use crate::root::RootObject;
 use crate::{BevyObject, BindProject, Maybe, ZstInit};
 
 /// Types that references one or many entities similar to [`Children`].
@@ -93,18 +94,11 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for Child<T, C> {
 }
 
 impl<'de, T: BevyObject, C: ChildrenLike> Deserialize<'de> for Child<T, C> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let entity = DeUtils::current_entity::<D>()?;
-        let new_child = DeUtils::with_world_mut::<D, _>(|world| {
-            let child = world.spawn_empty().id();
-            C::add_child(world.entity_mut(entity), child).map_err(serde::de::Error::custom)?;
-            Ok(child)
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let child = RootObject::<T>::deserialize(deserializer)?.get();
+        DeUtils::with_entity_mut::<D, _>(|entity| {
+            C::add_child(entity, child).map_err(serde::de::Error::custom)
         })??;
-        ScopeUtils::current_entity_scope(new_child, || <T::Object>::deserialize(deserializer))
-            .map_err(serde::de::Error::custom)?;
         Ok(Child(PhantomData))
     }
 }
@@ -217,10 +211,7 @@ impl<T: BevyObject, C: ChildrenLike> Serialize for ChildVec<T, C> {
 }
 
 impl<'de, T: BevyObject, C: ChildrenLike> Deserialize<'de> for ChildVec<T, C> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_seq(ChildVec::<T, C>(PhantomData))
     }
 }
@@ -232,10 +223,7 @@ impl<'de, T: BevyObject, C: ChildrenLike> Visitor<'de> for ChildVec<T, C> {
         formatter.write_str("a sequence of entities")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
         while seq.next_element::<Child<T, C>>()?.is_some() {}
         Ok(ChildVec(PhantomData))
     }
