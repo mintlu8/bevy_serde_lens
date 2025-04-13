@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![allow(clippy::type_complexity)]
 use bevy_ecs::component::Component;
 use bevy_ecs::query::{QueryData, QueryFilter};
 use bevy_ecs::world::EntityRef;
@@ -11,10 +12,11 @@ mod children;
 pub use children::{Child, ChildVec, ChildrenLike};
 mod batch;
 mod childmap;
+pub use childmap::{ChildMap, ChildMapLike};
 mod extensions;
 mod root;
 pub use batch::{BatchSerialization, Join, SerializeWorld};
-pub use extensions::{DeserializeLens, InWorld, SerializeLens, WorldExtension};
+pub use extensions::{InWorld, SerializeLens, WorldExtension};
 pub use root::RootObject;
 mod adjacent;
 pub use adjacent::{Adjacent, SerializeAdjacent};
