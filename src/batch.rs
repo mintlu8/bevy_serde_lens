@@ -1,8 +1,7 @@
-use crate::{
-    entity_scope, ser_scope, BevyObject, Root, SerializeNonSend, SerializeResource, ZstInit,
-};
+use crate::{root::Root, BevyObject, SerializeNonSend, SerializeResource, ZstInit};
 use bevy_ecs::{entity::Entity, resource::Resource, world::World};
 use bevy_reflect::TypePath;
+use bevy_serde_lens_core::ScopeUtils;
 use serde::{
     de::{DeserializeOwned, MapAccess, Visitor},
     ser::SerializeMap,
@@ -98,7 +97,7 @@ where
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
         if T::IS_QUERY {
             let mut query = world.query_filtered::<T::Data, T::Filter>();
-            ser_scope(world, || {
+            ScopeUtils::serialize_scope(world, || {
                 serializer.collect_seq(query.iter(world).map(T::into_ser))
             })
         } else {
@@ -106,8 +105,8 @@ where
             let mut query = world.query_filtered::<Entity, T::Filter>();
             let mut seq = serializer.serialize_seq(Some(query.iter(world).count()))?;
             for entity in query.iter(world) {
-                ser_scope(world, || {
-                    entity_scope(entity, || seq.serialize_element(&T::init()))
+                ScopeUtils::serialize_scope(world, || {
+                    ScopeUtils::current_entity_scope(entity, || seq.serialize_element(&T::init()))
                 })?;
             }
             seq.end()
@@ -133,7 +132,7 @@ where
     }
 
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        ser_scope(world, || Self::init().serialize(serializer))
+        ScopeUtils::serialize_scope(world, || Self::init().serialize(serializer))
     }
 
     fn despawn(world: &mut World) {
@@ -151,7 +150,7 @@ where
     }
 
     fn serialize<S: Serializer>(world: &mut World, serializer: S) -> Result<S::Ok, S::Error> {
-        ser_scope(world, || Self::init().serialize(serializer))
+        ScopeUtils::serialize_scope(world, || Self::init().serialize(serializer))
     }
 
     fn despawn(world: &mut World) {

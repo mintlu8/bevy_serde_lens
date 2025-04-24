@@ -1,6 +1,7 @@
-use crate::{world_entity_scope, world_entity_scope_mut, BevyObject, SerializeComponent, ZstInit};
+use crate::{BevyObject, SerializeComponent, ZstInit};
 use bevy_ecs::{component::Component, query::With};
 use bevy_reflect::TypePath;
+use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
 use serde::Deserialize;
 use serde::Serialize;
@@ -41,19 +42,8 @@ impl<T: Component + ErasedObject> serde::Serialize for $ty<SerializeComponent<T>
     where
         S: serde::Serializer,
     {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing: {entity:?}."
-                )));
-            };
-            let Some(component) = entity.get::<T>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Component missing: {}.",
-                    std::any::type_name::<T>()
-                )));
-            };
-            $ty::ref_cast(component).serialize(serializer)
+        SerUtils::with_component::<T, S, _>(|c| {
+            $ty::ref_cast(c).serialize(serializer)
         })?
     }
 }
@@ -62,15 +52,8 @@ impl<'de, T: Component + ErasedObject> Deserialize<'de> for $ty<SerializeCompone
     fn deserialize<D: serde::Deserializer<'de>,>(deserializer: D) -> Result<Self, D::Error>
     {
         let component = $ty::<T>::deserialize(deserializer)?;
-        world_entity_scope_mut::<_, D>(|world, entity| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(serde::de::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            entity.insert(component);
-            Ok(Self::init())
-        })?
+        DeUtils::insert::<D>(component)?;
+        Ok(ZstInit::init())
     }
 }
 )*

@@ -1,18 +1,12 @@
-use crate::{
-    entity_scope, world_entity_scope, world_entity_scope_mut, BevyObject, BindProject,
-    BindProjectQuery, ZstInit,
-};
+use crate::{BevyObject, BindProject, BindProjectQuery, ZstInit};
 use bevy_ecs::{
-    entity::Entity,
     query::{QueryFilter, With},
     resource::Resource,
-    world::{FromWorld, World},
+    world::FromWorld,
 };
-use bevy_serde_lens_core::{with_world, with_world_mut};
-use serde::{
-    de::{SeqAccess, Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use bevy_serde_lens_core::{DeUtils, SerUtils};
+use bevy_state::state::{FreelyMutableState, NextState, State};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Debug, marker::PhantomData};
 
 #[allow(unused)]
@@ -53,15 +47,12 @@ impl<T: BevyObject> BindProjectQuery for Maybe<T> {
 
 impl<T: BevyObject> Serialize for Maybe<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope::<_, S>(|world, entity| match world.get_entity(entity) {
-            Ok(entity_ref) => {
-                if T::filter(&entity_ref) {
-                    Some(T::init())
-                } else {
-                    None
-                }
+        SerUtils::with_entity_ref::<S, _>(|entity| {
+            if T::filter(&entity) {
+                Some(T::init())
+            } else {
+                None
             }
-            Err(_) => None,
         })?
         .serialize(serializer)
     }
@@ -92,12 +83,16 @@ impl<T> ZstInit for DefaultInit<T> {
     }
 }
 
+/// Doesn't do anything since we discard errors.
 type DummyDeserializer = serde::de::value::BoolDeserializer<serde::de::value::Error>;
 
-/// Here to make `#[serde(default)]` work.
+/// To make `#[serde(default)]` work.
 impl<T: Component + FromWorld> Default for DefaultInit<T> {
     fn default() -> Self {
-        let _ = world_entity_scope_mut::<_, DummyDeserializer>(|world, entity| {
+        let Ok(entity) = DeUtils::current_entity::<DummyDeserializer>() else {
+            return Self(PhantomData);
+        };
+        let _ = DeUtils::with_world_mut::<DummyDeserializer, _>(|world| {
             let item = T::from_world(world);
             let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return;
@@ -122,20 +117,8 @@ impl<T: Component + FromWorld> Serialize for DefaultInit<T> {
     where
         S: serde::Serializer,
     {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing: {entity:?}."
-                )));
-            };
-            if !entity.contains::<T>() {
-                return Err(serde::ser::Error::custom(format!(
-                    "Component missing: {}.",
-                    std::any::type_name::<T>()
-                )));
-            };
-            Ok(())
-        })??;
+        // We need to validate the component exists.
+        SerUtils::with_component::<T, S, _>(|_| ())?;
         ().serialize(serializer)
     }
 }
@@ -146,14 +129,8 @@ impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
         D: serde::Deserializer<'de>,
     {
         <()>::deserialize(deserializer)?;
-        world_entity_scope_mut::<_, D>(|world, entity| {
-            let item = T::from_world(world);
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(serde::de::Error::custom("Entity missing."));
-            };
-            entity.insert(item);
-            Ok(())
-        })??;
+        let item = DeUtils::with_world_mut::<D, _>(T::from_world)?;
+        DeUtils::insert::<D>(item)?;
         Ok(Self(PhantomData))
     }
 }
@@ -210,74 +187,6 @@ impl<'de, T: QueryFilter + FromWorld> Deserialize<'de> for AdditionalFilter<T> {
     }
 }
 
-/// Make a [`BevyObject`] [`Deserialize`] by providing a root level entity in the world.
-pub struct Root<T>(PhantomData<T>);
-
-impl<T> Debug for Root<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Root").finish()
-    }
-}
-
-impl<T> ZstInit for Root<T> {
-    fn init() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<'de, T: BevyObject> Deserialize<'de> for Root<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(Root(PhantomData))
-    }
-}
-
-fn safe_despawn(world: &mut World, entity: Entity) {
-    if let Ok(entity) = world.get_entity_mut(entity) {
-        entity.despawn();
-    }
-}
-
-impl<'de, T: BevyObject> Visitor<'de> for Root<T> {
-    type Value = Root<T>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a sequence of entities")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        loop {
-            let entity = with_world_mut(|world| {
-                let entity = world.spawn_empty().id();
-                if let Some(mut root) = T::get_root(world) {
-                    root.add_child(entity);
-                }
-                entity
-            })
-            .map_err(serde::de::Error::custom)?;
-            match entity_scope(entity, || seq.next_element::<T::Object>()) {
-                Err(err) => {
-                    with_world_mut(|world| safe_despawn(world, entity))
-                        .map_err(serde::de::Error::custom)?;
-                    return Err(err);
-                }
-                Ok(None) => {
-                    with_world_mut(|world| safe_despawn(world, entity))
-                        .map_err(serde::de::Error::custom)?;
-                    break;
-                }
-                Ok(Some(_)) => {}
-            }
-        }
-        Ok(Root(PhantomData))
-    }
-}
-
 /// Serialize a component on the active entity.
 pub struct SerializeComponent<T>(PhantomData<T>);
 
@@ -304,20 +213,7 @@ impl<T: Component> BindProjectQuery for SerializeComponent<T> {
 
 impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing: {entity:?}."
-                )));
-            };
-            let Some(component) = entity.get::<T>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Component missing: {}.",
-                    std::any::type_name::<T>()
-                )));
-            };
-            component.serialize(serializer)
-        })?
+        SerUtils::with_component::<T, S, _>(|component| component.serialize(serializer))?
     }
 }
 
@@ -327,15 +223,8 @@ impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeCompone
         D: serde::Deserializer<'de>,
     {
         let component = T::deserialize(deserializer)?;
-        world_entity_scope_mut::<_, D>(|world, entity| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(serde::de::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            entity.insert(component);
-            Ok(Self(PhantomData))
-        })?
+        DeUtils::insert::<D>(component)?;
+        Ok(ZstInit::init())
     }
 }
 
@@ -356,16 +245,7 @@ impl<T> ZstInit for SerializeResource<T> {
 
 impl<T: Resource + Serialize> Serialize for SerializeResource<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world(|world| {
-            let Some(resource) = world.get_resource::<T>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Resource missing {}.",
-                    std::any::type_name::<T>()
-                )));
-            };
-            resource.serialize(serializer)
-        })
-        .map_err(serde::ser::Error::custom)?
+        SerUtils::with_resource::<T, S, _>(|resource| resource.serialize(serializer))?
     }
 }
 
@@ -375,8 +255,9 @@ impl<'de, T: Resource + Deserialize<'de>> Deserialize<'de> for SerializeResource
         D: serde::Deserializer<'de>,
     {
         let resource = T::deserialize(deserializer)?;
-        with_world_mut(|world| world.insert_resource(resource))
-            .map_err(serde::de::Error::custom)?;
+        DeUtils::with_world_mut::<D, _>(|world| {
+            world.insert_resource(resource);
+        })?;
         Ok(Self(PhantomData))
     }
 }
@@ -398,16 +279,7 @@ impl<T> Debug for SerializeNonSend<T> {
 
 impl<T: Serialize + 'static> Serialize for SerializeNonSend<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        with_world(|world| {
-            let Some(resource) = world.get_non_send_resource::<T>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Non-send resource missing {}.",
-                    std::any::type_name::<T>()
-                )));
-            };
-            resource.serialize(serializer)
-        })
-        .map_err(serde::ser::Error::custom)?
+        SerUtils::with_non_send_resource::<T, S, _>(|resource| resource.serialize(serializer))?
     }
 }
 
@@ -417,8 +289,43 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
         D: serde::Deserializer<'de>,
     {
         let resource = T::deserialize(deserializer)?;
-        with_world_mut(|world| world.insert_non_send_resource(resource))
-            .map_err(serde::de::Error::custom)?;
+        DeUtils::with_world_mut::<D, _>(|world| {
+            world.insert_non_send_resource(resource);
+        })?;
+        Ok(Self(PhantomData))
+    }
+}
+
+/// Serialize a resource on the active world.
+pub struct SerializeState<T>(PhantomData<T>);
+
+impl<T> Debug for SerializeState<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerializeState").finish()
+    }
+}
+
+impl<T> ZstInit for SerializeState<T> {
+    fn init() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T: FreelyMutableState + Serialize> Serialize for SerializeState<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SerUtils::with_resource::<State<T>, S, _>(|resource| resource.get().serialize(serializer))?
+    }
+}
+
+impl<'de, T: FreelyMutableState + Deserialize<'de>> Deserialize<'de> for SerializeState<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let new_state = T::deserialize(deserializer)?;
+        DeUtils::with_resource_mut::<NextState<T>, D, _>(|mut state| {
+            state.set(new_state);
+        })?;
         Ok(Self(PhantomData))
     }
 }
@@ -445,20 +352,7 @@ impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
         _: &SerializeComponent<A::Type>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        world_entity_scope::<_, S>(|world, entity| {
-            let Ok(entity) = world.get_entity(entity) else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Entity missing: {entity:?}."
-                )));
-            };
-            let Some(component) = entity.get::<A::Type>() else {
-                return Err(serde::ser::Error::custom(format!(
-                    "Component missing: {}.",
-                    std::any::type_name::<A::Type>()
-                )));
-            };
-            A::serialize(serializer, component)
-        })?
+        SerUtils::with_component::<A::Type, S, _>(|component| A::serialize(serializer, component))?
     }
 
     #[doc(hidden)]
@@ -466,14 +360,7 @@ impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
         deserializer: D,
     ) -> Result<SerializeComponent<A::Type>, D::Error> {
         let component = A::deserialize(deserializer)?;
-        world_entity_scope_mut::<_, D>(|world, entity| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(serde::de::Error::custom(format!(
-                    "Entity missing {entity:?}."
-                )));
-            };
-            entity.insert(component);
-            Ok(SerializeComponent(PhantomData))
-        })?
+        DeUtils::insert::<D>(component)?;
+        Ok(SerializeComponent(PhantomData))
     }
 }

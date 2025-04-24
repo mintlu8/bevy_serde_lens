@@ -15,5 +15,6 @@ World access module for bevy_serde_lens.
 keywords = ["bevy", "serde", "serialize", "save"]
 
 [dependencies]
-bevy_ecs = "0.16.0-rc.3"
+bevy_ecs = "0.16.0"
 scoped-tls-hkt = "0.1.4"
+serde = { version = "1.0.219", default-features = false }
