@@ -21,7 +21,6 @@ pub trait WorldExtension {
     /// # What's a [`Serializer`]?
     ///
     /// Most `serde` frontends provide a serializer, like `serde_json::Serializer`.
-    /// They typically wrap a [`std::io::Write`] and write to that stream.
     fn save<T: BatchSerialization, S: Serializer>(
         &mut self,
         serializer: S,
@@ -31,7 +30,6 @@ pub trait WorldExtension {
     /// # What's a [`Deserializer`]?
     ///
     /// Most `serde` frontends provide a serializer, like `serde_json::Deserializer`.
-    /// They typically wrap a [`std::io::Read`] and read from that stream.
     fn load<'de, T: BatchSerialization, D: Deserializer<'de>>(
         &mut self,
         deserializer: D,
@@ -57,21 +55,21 @@ pub trait WorldExtension {
     );
 
     /// When serializing, extract a resource into a thread local scope.
-    /// 
+    ///
     /// To implement this, push `R` into a scope then call the `FnMut`,
     /// it is recommended to use [`scoped_tls_hkt`] alongside this.
     fn register_serialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static,
     );
 
     /// When deserializing, extract a resource into a thread local scope.
-    /// 
+    ///
     /// To implement this, push `R` into a scope then call the `FnMut`,
     /// it is recommended to use [`scoped_tls_hkt`] alongside this.
     fn register_deserialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static,
     );
 }
 
@@ -102,7 +100,9 @@ impl WorldExtension for World {
 
         self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
             (extractions.de)(world, &mut |world| {
-                result = Some(ScopeUtils::deserialize_scope(world, || T::De::deserialize(deserializer.take().unwrap())))
+                result = Some(ScopeUtils::deserialize_scope(world, || {
+                    T::De::deserialize(deserializer.take().unwrap())
+                }))
             })
         });
         // Discard the zst.
@@ -146,15 +146,13 @@ impl WorldExtension for World {
 
     fn register_serialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static,
     ) {
         self.init_resource::<RegisteredExtractions>();
         let mut res = self.resource_mut::<RegisteredExtractions>();
         res.ser = Box::new(move |world, callback| {
             if world.contains_resource::<R>() {
-                world.resource_scope::<R, _>(|world, res| {
-                    extract(&res, &mut || callback(world))
-                })
+                world.resource_scope::<R, _>(|world, res| extract(&res, &mut || callback(world)))
             } else {
                 callback(world)
             }
@@ -163,11 +161,11 @@ impl WorldExtension for World {
 
     fn register_deserialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static,
     ) {
         self.init_resource::<RegisteredExtractions>();
         let mut res = self.resource_mut::<RegisteredExtractions>();
-        res.ser = Box::new(move |world, callback| {
+        res.de = Box::new(move |world, callback| {
             if world.contains_resource::<R>() {
                 world.resource_scope::<R, _>(|world, mut res| {
                     extract(&mut res, &mut || callback(world))
@@ -219,14 +217,14 @@ impl WorldExtension for App {
 
     fn register_serialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&R, &mut dyn FnMut()) + Send + Sync + 'static,
     ) {
         self.world_mut().register_serialize_resource_cx(extract);
     }
 
     fn register_deserialize_resource_cx<R: Resource>(
         &mut self,
-        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static
+        extract: impl Fn(&mut R, &mut dyn FnMut()) + Send + Sync + 'static,
     ) {
         self.world_mut().register_deserialize_resource_cx(extract);
     }
@@ -259,26 +257,25 @@ impl<'de, T: BatchSerialization> Deserialize<'de> for InWorld<T> {
     }
 }
 
-
 #[derive(Resource)]
-pub struct RegisteredExtractions{
+pub struct RegisteredExtractions {
     ser: Box<dyn Fn(&mut World, &mut dyn FnMut(&mut World)) + Send + Sync>,
     de: Box<dyn Fn(&mut World, &mut dyn FnMut(&mut World)) + Send + Sync>,
 }
 
-impl Default for RegisteredExtractions{
+impl Default for RegisteredExtractions {
     fn default() -> Self {
-        Self { 
-            ser: Box::new(|world, callback| callback(world)), 
-            de: Box::new(|world, callback| 
+        Self {
+            ser: Box::new(|world, callback| callback(world)),
+            de: Box::new(|world, callback| {
                 if world.contains_resource::<TypeTagServer>() {
                     world.resource_scope::<TypeTagServer, _>(|world, server| {
-                        TYPETAG_SERVER.set(&server, ||callback(world))
+                        TYPETAG_SERVER.set(&server, || callback(world))
                     })
                 } else {
                     callback(world)
                 }
-            )
+            }),
         }
     }
 }
