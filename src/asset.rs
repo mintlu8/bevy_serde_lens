@@ -1,9 +1,12 @@
 //! Module for serializing [`Handle`]s and [`Asset`]s.
 
-use bevy::asset::{Asset, AssetServer, Assets, Handle};
+use bevy::asset::{Asset, AssetServer, Assets, Handle, UntypedHandle};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
+use rustc_hash::FxHashMap;
+use scoped_tls_hkt::scoped_thread_local;
 use serde::{Deserialize, Serialize, Serializer};
+use std::any::{type_name, TypeId};
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -123,5 +126,76 @@ impl<T: Asset> UniqueHandle<T> {
         deserializer: D,
     ) -> Result<Handle<T>, D::Error> {
         <PathHandle<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
+    }
+}
+
+
+/// Projection of [`Handle`] that serializes its content.
+#[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
+#[repr(transparent)]
+pub struct SerializeHandle<T: Asset>(pub Handle<T>);
+
+#[derive(Debug, Deserialize)]
+pub struct ReusableAsset<T: Asset> {
+    pub id: usize,
+    //#[serde(default)]
+    pub asset: Option<T>,
+}
+
+scoped_thread_local!(
+    static mut REUSABLE_HANDLES: FxHashMap<(TypeId, usize), UntypedHandle>
+);
+
+impl<T: Asset + Serialize> Serialize for SerializeHandle<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SerUtils::with_world::<S, _>(|world| {
+            let Some(assets) = world.get_resource::<Assets<T>>() else {
+                return Err(serde::ser::Error::custom(format!(
+                    "Assets asset missing for handle {:?}.",
+                    self.0
+                )));
+            };
+            match assets.get(&self.0) {
+                Some(asset) => asset.serialize(serializer),
+                None => Err(serde::ser::Error::custom(format!(
+                    "Associated asset missing for handle {:?}.",
+                    self.0
+                ))),
+            }
+        })?
+    }
+}
+
+impl<'de, T: Asset + Deserialize<'de>> Deserialize<'de> for SerializeHandle<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let asset = ReusableAsset::<T>::deserialize(deserializer)?;
+        REUSABLE_HANDLES.with(|handles| {
+            match asset.asset {
+                Some(item) => {
+                    let Some(handle) = DeUtils::with_world_mut::<D, _>(|world| {
+                        world.get_resource_mut::<Assets<T>>().map(|mut x| x.add(item))
+                    })? else {
+                        return Err(serde::de::Error::custom(format!(
+                            "Assets type {} missing.",
+                            type_name::<T>()
+                        )));
+                    };
+                    handles.insert((TypeId::of::<T>(), asset.id), handle.clone().untyped());
+                    Ok(SerializeHandle(handle))
+                },
+                None => {
+                    handles.get(&(TypeId::of::<T>(), asset.id))
+                        .map(|x| SerializeHandle(x.clone().typed()))
+                        .ok_or_else(|| serde::de::Error::custom(format!(
+                            "Assets id missing {} of type {}.",
+                            asset.id,
+                            type_name::<T>()
+                        )))
+                },
+            }
+        })
     }
 }

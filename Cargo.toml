@@ -24,7 +24,7 @@ extra-checks = []
 derive = ["bevy_serde_lens_derive"]
 
 ## Enables serialization for mesh and certain materials.
-prefab = []
+prefab = ["bevy/bevy_render", "bevy/bevy_pbr", "wgpu-types"]
 
 [lib]
 doctest = false
@@ -47,9 +47,10 @@ thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
 linkme = { version = "0.3.31", optional = true }
+wgpu-types = { version = "24.0", features = ["serde"], optional = true }
 
 [dev-dependencies]
-bevy_scene = "0.16.0"
+bevy = "0.16.0"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"

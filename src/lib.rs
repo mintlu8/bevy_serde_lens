@@ -25,6 +25,8 @@ mod filter;
 pub mod interning;
 pub mod typetagged;
 pub use filter::EntityFilter;
+//#[cfg(feature = "prefab")]
+mod prefab;
 #[cfg(any(feature = "linkme", doc))]
 #[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
 pub mod linking;
