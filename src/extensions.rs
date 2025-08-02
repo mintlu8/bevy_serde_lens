@@ -1,10 +1,10 @@
 use crate::typetagged::TYPETAG_SERVER;
 use crate::typetagged::{ErasedObject, TypeTagServer};
 use crate::BatchSerialization;
-use bevy_app::App;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
-use bevy_reflect::TypePath;
+use bevy::app::App;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::world::World;
+use bevy::reflect::TypePath;
 use bevy_serde_lens_core::ScopeUtils;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

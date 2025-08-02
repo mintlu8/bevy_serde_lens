@@ -1,5 +1,5 @@
-use bevy_ecs::query::{Or, QueryFilter, With, Without};
-use bevy_ecs::{component::Component, world::EntityRef};
+use bevy::ecs::query::{Or, QueryFilter, With, Without};
+use bevy::ecs::{component::Component, world::EntityRef};
 
 /// A subset of [`QueryFilter`] that works on [`EntityRef`].
 /// Supports tuples, [`With`], [`Without`] and [`Or`].

@@ -1,6 +1,6 @@
 use crate::{BevyObject, SerializeComponent, ZstInit};
-use bevy_ecs::{component::Component, query::With};
-use bevy_reflect::TypePath;
+use bevy::ecs::{component::Component, query::With};
+use bevy::reflect::TypePath;
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
 use serde::Deserialize;

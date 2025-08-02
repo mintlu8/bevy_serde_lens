@@ -1,16 +1,16 @@
 use crate::{BevyObject, BindProject, BindProjectQuery, ZstInit};
-use bevy_ecs::{
+use bevy::ecs::{
     query::{QueryFilter, With},
     resource::Resource,
     world::FromWorld,
 };
+use bevy::state::state::{FreelyMutableState, NextState, State};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
-use bevy_state::state::{FreelyMutableState, NextState, State};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Debug, marker::PhantomData};
 
 #[allow(unused)]
-use bevy_ecs::component::Component;
+use bevy::ecs::component::Component;
 
 /// Extractor that allows a [`BevyObject`] to be missing.
 ///

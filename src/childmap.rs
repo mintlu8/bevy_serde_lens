@@ -1,4 +1,4 @@
-use bevy_ecs::{component::Component, entity::Entity, world::EntityWorldMut};
+use bevy::ecs::{component::Component, entity::Entity, world::EntityWorldMut};
 use bevy_serde_lens_core::{DeUtils, ScopeUtils, SerUtils};
 use serde::{
     de::{DeserializeOwned, MapAccess, Visitor},

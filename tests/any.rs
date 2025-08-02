@@ -1,6 +1,6 @@
 #![allow(clippy::approx_constant)]
-use bevy_ecs::{component::Component, world::World};
-use bevy_reflect::{DynamicTypePath, TypePath};
+use bevy::ecs::{component::Component, world::World};
+use bevy::reflect::{DynamicTypePath, TypePath};
 use bevy_serde_lens::typetagged::ErasedObject;
 use bevy_serde_lens::typetagged::{AnyOrTagged, DeserializeError};
 use bevy_serde_lens::WorldExtension;

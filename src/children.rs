@@ -1,8 +1,8 @@
-use bevy_ecs::component::Component;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::Children;
-use bevy_ecs::relationship::RelationshipTarget;
-use bevy_ecs::world::EntityWorldMut;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::relationship::RelationshipTarget;
+use bevy::ecs::world::EntityWorldMut;
 use bevy_serde_lens_core::{DeUtils, ScopeUtils, SerUtils};
 use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

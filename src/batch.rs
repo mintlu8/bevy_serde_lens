@@ -1,6 +1,6 @@
 use crate::{root::Root, BevyObject, SerializeNonSend, SerializeResource, ZstInit};
-use bevy_ecs::{entity::Entity, resource::Resource, world::World};
-use bevy_reflect::TypePath;
+use bevy::ecs::{entity::Entity, resource::Resource, world::World};
+use bevy::reflect::TypePath;
 use bevy_serde_lens_core::ScopeUtils;
 use serde::{
     de::{DeserializeOwned, MapAccess, Visitor},

@@ -1,6 +1,6 @@
-use bevy_app::App;
-use bevy_ecs::{component::Component, reflect::ReflectComponent, world::World};
-use bevy_reflect::{Reflect, TypeRegistration, TypeRegistry};
+use bevy::app::App;
+use bevy::ecs::{component::Component, reflect::ReflectComponent, world::World};
+use bevy::reflect::{Reflect, TypeRegistration, TypeRegistry};
 use bevy_scene::{serde::SceneDeserializer, DynamicScene};
 use bevy_serde_lens::{BevyObject, InWorld, WorldExtension};
 use criterion::{criterion_group, criterion_main, Criterion};

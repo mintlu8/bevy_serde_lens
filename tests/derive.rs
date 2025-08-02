@@ -1,6 +1,6 @@
-use bevy_asset::{Asset, Handle};
-use bevy_ecs::{bundle::Bundle, component::Component};
-use bevy_reflect::TypePath;
+use bevy::asset::{Asset, Handle};
+use bevy::ecs::{bundle::Bundle, component::Component};
+use bevy::reflect::TypePath;
 use bevy_serde_lens::{
     asset::{PathHandle, UniqueHandle},
     BevyObject, ChildVec, DefaultInit, Maybe,

@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
-use bevy_ecs::component::Component;
-use bevy_ecs::query::{QueryData, QueryFilter};
-use bevy_ecs::world::EntityRef;
+use bevy::ecs::component::Component;
+use bevy::ecs::query::{QueryData, QueryFilter};
+use bevy::ecs::world::EntityRef;
 #[allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod extractors;
@@ -30,18 +30,18 @@ pub use filter::EntityFilter;
 pub mod linking;
 
 #[allow(unused)]
-use bevy_asset::Handle;
+use bevy::asset::Handle;
 #[allow(unused)]
-use bevy_ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{
+pub use bevy::ecs::{
     entity::Entity,
     query::With,
     world::{EntityWorldMut, World},
 };
 #[doc(hidden)]
-pub use bevy_reflect::TypePath;
+pub use bevy::reflect::TypePath;
 #[doc(hidden)]
 pub use serde;
 

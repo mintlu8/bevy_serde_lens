@@ -1,6 +1,6 @@
 //! Module for serializing [`Handle`]s and [`Asset`]s.
 
-use bevy_asset::{Asset, AssetServer, Assets, Handle};
+use bevy::asset::{Asset, AssetServer, Assets, Handle};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize, Serializer};

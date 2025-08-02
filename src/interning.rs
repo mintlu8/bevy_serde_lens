@@ -2,7 +2,7 @@
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use bevy_ecs::resource::Resource;
+use bevy::ecs::resource::Resource;
 use bevy_serde_lens_core::DeUtils;
 use bevy_serde_lens_core::SerUtils;
 use ref_cast::RefCast;
