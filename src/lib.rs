@@ -1,11 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
+#![allow(clippy::collapsible_else_if)]
 use bevy::ecs::component::Component;
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::ecs::world::EntityRef;
-#[allow(unused)]
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod extractors;
 pub use extractors::*;
 mod children;
@@ -24,12 +23,15 @@ pub mod asset;
 mod filter;
 pub mod interning;
 pub mod typetagged;
+mod util;
+pub use util::*;
 pub use filter::EntityFilter;
-//#[cfg(feature = "prefab")]
-mod prefab;
 #[cfg(any(feature = "linkme", doc))]
 #[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
 pub mod linking;
+#[cfg(any(feature = "prefab", doc))]
+#[cfg_attr(docsrs, doc(cfg(feature = "prefab")))]
+mod prefab;
 
 #[allow(unused)]
 use bevy::asset::Handle;
@@ -46,6 +48,8 @@ pub use bevy::ecs::{
 pub use bevy::reflect::TypePath;
 #[doc(hidden)]
 pub use serde;
+#[allow(unused)]
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 pub use bevy_serde_lens_core::{DeUtils, SerUtils};
 #[cfg(feature = "derive")]
@@ -184,5 +188,24 @@ macro_rules! batch_inner {
     };
     ($first: ty $(,$ty: ty)* $(,)?) => {
         $crate::Join<$first, $crate::batch_inner!($($ty),*)>
+    };
+}
+
+#[doc(hidden)]
+pub use std::format;
+
+/// Format a [`serde::ser::Error`].
+#[macro_export]
+macro_rules! serrorf {
+    ($($tt: tt)*) => {
+        $crate::serde::ser::Error::custom($crate::format!($($tt)*))
+    };
+}
+
+/// Format a [`serde::de::Error`].
+#[macro_export]
+macro_rules! derrorf {
+    ($($tt: tt)*) => {
+        $crate::serde::de::Error::custom($crate::format!($($tt)*))
     };
 }

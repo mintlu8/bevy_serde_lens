@@ -1,11 +1,11 @@
-use crate::{root::Root, BevyObject, SerializeNonSend, SerializeResource, ZstInit};
+use crate::{BevyObject, SerializeNonSend, SerializeResource, ZstInit, root::Root};
 use bevy::ecs::{entity::Entity, resource::Resource, world::World};
 use bevy::reflect::TypePath;
 use bevy_serde_lens_core::ScopeUtils;
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{DeserializeOwned, MapAccess, Visitor},
     ser::SerializeMap,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{borrow::Cow, cell::RefCell, marker::PhantomData};
 

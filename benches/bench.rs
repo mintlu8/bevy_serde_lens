@@ -1,9 +1,9 @@
 use bevy::app::App;
 use bevy::ecs::{component::Component, reflect::ReflectComponent, world::World};
 use bevy::reflect::{Reflect, TypeRegistration, TypeRegistry};
-use bevy_scene::{serde::SceneDeserializer, DynamicScene};
+use bevy::scene::{DynamicScene, serde::SceneDeserializer};
 use bevy_serde_lens::{BevyObject, InWorld, WorldExtension};
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use itertools::izip;
 use rand::distributions::{Distribution, Standard};
 use rand_derive2::RandGen;

@@ -4,7 +4,7 @@ use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
 use serde::de::DeserializeOwned;
 
-use crate::{typetagged::ErasedObject, WorldExtension};
+use crate::{WorldExtension, typetagged::ErasedObject};
 
 #[doc(hidden)]
 pub use linkme::distributed_slice;
@@ -17,8 +17,8 @@ pub type Func = fn(&mut World);
 pub static DESERIALIZER_PLUGINS: [fn(&mut World)];
 
 /// Create a function to use with [`DESERIALIZER_PLUGINS`].
-pub const fn as_deserialize_plugin<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>(
-) -> fn(&mut World) {
+pub const fn as_deserialize_plugin<A: ErasedObject, B: Into<A> + TypePath + DeserializeOwned>()
+-> fn(&mut World) {
     |world| {
         world.register_typetag::<A, B>();
     }

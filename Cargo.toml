@@ -4,7 +4,7 @@ members = ["core", "derive"]
 [package]
 name = "bevy_serde_lens"
 version = "0.6.0"
-edition = "2021"
+edition = "2024"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ Blazingly fast, schema based human-readable serialization crate for the bevy eng
 keywords = ["bevy", "serde", "serialize", "save"]
 
 [features]
-default = ["derive"]
+default = ["derive", "prefab"]
 ## Performance impactful checks at serialization time.
 ## Enabled by default in `debug` mode regardless of this feature.
 extra-checks = []

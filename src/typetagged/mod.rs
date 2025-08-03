@@ -38,9 +38,9 @@
 //! implement additional methods on [`ErasedObject`] and
 //! use [`AnyOrTagged`] or [`SmartTagged`].
 mod internal;
+pub(crate) use internal::TYPETAG_SERVER;
 pub use internal::TypeTagServer;
 use internal::TypeTaggedVisitor;
-pub(crate) use internal::TYPETAG_SERVER;
 mod bevy_object;
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
