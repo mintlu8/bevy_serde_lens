@@ -17,14 +17,11 @@ Blazingly fast, schema based human-readable serialization crate for the bevy eng
 keywords = ["bevy", "serde", "serialize", "save"]
 
 [features]
-default = ["derive", "prefab"]
+default = ["derive"]
 ## Performance impactful checks at serialization time.
 ## Enabled by default in `debug` mode regardless of this feature.
 extra-checks = []
 derive = ["bevy_serde_lens_derive"]
-
-## Enables serialization for mesh and certain materials.
-prefab = ["bevy/bevy_render", "bevy/bevy_pbr", "wgpu-types"]
 
 [lib]
 doctest = false
@@ -47,7 +44,6 @@ thiserror = "1.0.57"
 ref-cast = "1.0.22"
 scoped-tls-hkt = "0.1.4"
 linkme = { version = "0.3.31", optional = true }
-wgpu-types = { version = "24.0", features = ["serde"], optional = true }
 
 [dev-dependencies]
 bevy = "0.16.0"
