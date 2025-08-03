@@ -24,14 +24,11 @@ mod filter;
 pub mod interning;
 pub mod typetagged;
 mod util;
-pub use util::*;
 pub use filter::EntityFilter;
+pub use util::*;
 #[cfg(any(feature = "linkme", doc))]
 #[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
 pub mod linking;
-#[cfg(any(feature = "prefab", doc))]
-#[cfg_attr(docsrs, doc(cfg(feature = "prefab")))]
-mod prefab;
 
 #[allow(unused)]
 use bevy::asset::Handle;
@@ -134,13 +131,13 @@ where
     }
 }
 
-/// Make a type usable in in the [`BevyObject`] macro.
+/// Make a type usable in the [`BevyObject`] macro.
 pub trait BindProject {
     type To: ZstInit;
     type Filter: QueryFilter;
 }
 
-/// Make a type usable in in the [`BevyObject`] macro in `query` mode.
+/// Make a type usable in the [`BevyObject`] macro in `query` mode.
 pub trait BindProjectQuery {
     type Data: QueryData;
 }
@@ -193,19 +190,3 @@ macro_rules! batch_inner {
 
 #[doc(hidden)]
 pub use std::format;
-
-/// Format a [`serde::ser::Error`].
-#[macro_export]
-macro_rules! serrorf {
-    ($($tt: tt)*) => {
-        $crate::serde::ser::Error::custom($crate::format!($($tt)*))
-    };
-}
-
-/// Format a [`serde::de::Error`].
-#[macro_export]
-macro_rules! derrorf {
-    ($($tt: tt)*) => {
-        $crate::serde::de::Error::custom($crate::format!($($tt)*))
-    };
-}

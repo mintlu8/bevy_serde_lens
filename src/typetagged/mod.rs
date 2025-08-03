@@ -50,6 +50,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use crate::impl_with_notation_newtype;
+
 /// A serializable trait object of an [`ErasedObject`].
 ///
 /// Serialization is done in [`ErasedObject`]
@@ -367,38 +369,6 @@ impl<'de, V: ErasedObject> serde::Deserialize<'de> for SmartTagged<V> {
     }
 }
 
-impl<T: ErasedObject> TypeTagged<T> {
-    /// Serialize with [`TypeTagged`].
-    pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
-        TypeTagged::ref_cast(item).serialize(serializer)
-    }
-
-    /// Deserialize with [`TypeTagged`].
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
-        <TypeTagged<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
-    }
-}
-
-impl<T: ErasedObject> AnyOrTagged<T> {
-    /// Serialize with [`AnyOrTagged`].
-    pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
-        AnyOrTagged::ref_cast(item).serialize(serializer)
-    }
-
-    /// Deserialize with [`AnyOrTagged`].
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
-        <AnyOrTagged<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
-    }
-}
-
-impl<T: ErasedObject> SmartTagged<T> {
-    /// Serialize with [`SmartTagged`].
-    pub fn serialize<S: serde::Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
-        SmartTagged::ref_cast(item).serialize(serializer)
-    }
-
-    /// Deserialize with [`SmartTagged`].
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
-        <SmartTagged<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
-    }
-}
+impl_with_notation_newtype!([T: ErasedObject] TypeTagged [T] T);
+impl_with_notation_newtype!([T: ErasedObject] AnyOrTagged [T] T);
+impl_with_notation_newtype!([T: ErasedObject] SmartTagged [T] T);

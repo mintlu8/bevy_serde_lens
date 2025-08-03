@@ -11,6 +11,8 @@ use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
 
+use crate::impl_with_notation_newtype;
+
 /// A key to a value in an [`Interner`] resource.
 pub trait InterningKey: Sized + 'static {
     type Interner: Interner<Self>;
@@ -27,7 +29,7 @@ pub trait Interner<Key>: Resource {
     fn add(&mut self, value: Self::Value<'_>) -> Result<Key, Self::Error>;
 }
 
-/// Projection of an [`InterningKey`] that serializes the interned value.
+/// Serde `with` modifier for an interned value with [`InterningKey`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
 #[repr(transparent)]
 pub struct Interned<T: InterningKey>(pub T);
@@ -64,12 +66,4 @@ impl<'de, T: InterningKey> Deserialize<'de> for Interned<T> {
     }
 }
 
-impl<T: InterningKey> Interned<T> {
-    pub fn serialize<S: Serializer>(item: &T, serializer: S) -> Result<S::Ok, S::Error> {
-        Interned::ref_cast(item).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<T, D::Error> {
-        <Interned<T> as Deserialize>::deserialize(deserializer).map(|x| x.0)
-    }
-}
+impl_with_notation_newtype!([T: InterningKey] Interned [T] T);

@@ -12,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use crate::{derrorf, serrorf, MappedSerializer, MappedValue};
+use crate::{MappedSerializer, MappedValue, derrorf, impl_with_notation_newtype, serrorf};
 
 scoped_thread_local!(
     pub(crate) static mut SER_REUSABLE_HANDLES: FxHashMap<UntypedAssetId, usize>
@@ -66,7 +66,10 @@ pub(crate) struct HandleDeserialization<T: Asset, M: MappedSerializer<T>> {
 /// * Value missing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
 #[repr(transparent)]
-pub struct SerializeHandle<T: Asset, M: MappedSerializer<T>, const PATHED: bool>(pub Handle<T>, PhantomData<M>);
+pub struct SerializeHandle<T: Asset, M: MappedSerializer<T>, const PATHED: bool>(
+    pub Handle<T>,
+    PhantomData<M>,
+);
 
 impl<T: Asset, M: MappedSerializer<T>, const P: bool> SerializeHandle<T, M, P> {
     pub fn new(handle: Handle<T>) -> Self {
@@ -148,7 +151,9 @@ impl<T: Asset, M: MappedSerializer<T>, const P: bool> Serialize for SerializeHan
     }
 }
 
-impl<'de, T: Asset, M: MappedSerializer<T>, const P: bool> Deserialize<'de> for SerializeHandle<T, M, P> {
+impl<'de, T: Asset, M: MappedSerializer<T>, const P: bool> Deserialize<'de>
+    for SerializeHandle<T, M, P>
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let handle = HandleDeserialization::<T, M>::deserialize(deserializer)?;
         DeUtils::with_world_mut::<D, _>(|world| {
@@ -179,13 +184,7 @@ impl<'de, T: Asset, M: MappedSerializer<T>, const P: bool> Deserialize<'de> for 
     }
 }
 
-#[doc(hidden)]
-impl<T: Asset, M: MappedSerializer<T>, const P: bool> SerializeHandle<T, M, P> {
-    pub fn serialize<S: Serializer>(this: &Handle<T>, serializer: S) -> Result<S::Ok, S::Error> {
-        Serialize::serialize(Self::ref_cast(this), serializer)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Handle<T>, D::Error> {
-        <Self as Deserialize>::deserialize(deserializer).map(|x| x.0)
-    }
-}
+impl_with_notation_newtype!(
+    [T: Asset, M: MappedSerializer<T>, const P: bool] SerializeHandle [T, M, P]
+    Handle<T>
+);

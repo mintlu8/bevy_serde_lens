@@ -18,6 +18,7 @@ struct MySprite(
     #[serde(with = "OwnedHandle")] Handle<Image>,
     PathedHandle<Image>,
     OwnedHandle<Image>,
+    #[serde(with = "Maybe::<OwnedHandle<_>>")] Option<Handle<Image>>,
 );
 
 #[derive(Debug, Component, Default)]
