@@ -3,9 +3,8 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::{DynamicTypePath, TypePath};
 use bevy_serde_lens::{
-    link_deserializer,
+    WorldExtension, link_deserializer,
     typetagged::{ErasedObject, TypeTagged},
-    WorldExtension,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;

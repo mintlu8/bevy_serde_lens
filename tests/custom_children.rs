@@ -1,11 +1,11 @@
 use std::convert::Infallible;
 
-use bevy_ecs::{
+use bevy::ecs::{
     component::{Component, HookContext},
     entity::Entity,
     world::{DeferredWorld, EntityWorldMut, World},
 };
-use bevy_reflect::TypePath;
+use bevy::reflect::TypePath;
 use bevy_serde_lens::{BevyObject, Child, ChildVec, ChildrenLike, Maybe, WorldExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;

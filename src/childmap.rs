@@ -1,16 +1,16 @@
-use bevy_ecs::{component::Component, entity::Entity, world::EntityWorldMut};
+use bevy::ecs::{component::Component, entity::Entity, world::EntityWorldMut};
 use bevy_serde_lens_core::{DeUtils, ScopeUtils, SerUtils};
 use serde::{
+    Deserialize, Serialize,
     de::{DeserializeOwned, MapAccess, Visitor},
     ser::SerializeMap,
-    Deserialize, Serialize,
 };
 use std::{
     fmt::{Debug, Display},
     marker::PhantomData,
 };
 
-use crate::{root::RootObject, BevyObject, BindProject, ZstInit};
+use crate::{BevyObject, BindProject, ZstInit, root::RootObject};
 
 /// Types that references one or many entities with a serializable key.
 pub trait ChildMapLike: Component + Sized {
@@ -21,7 +21,7 @@ pub trait ChildMapLike: Component + Sized {
     fn iter_children(&self) -> impl Iterator<Item = (&Self::Key, Entity)>;
     /// Function that add child to parent, like [`EntityWorldMut::add_related`].
     fn add_child(parent: EntityWorldMut, key: Self::Key, child: Entity)
-        -> Result<(), impl Display>;
+    -> Result<(), impl Display>;
 }
 
 /// Extractor for multiple [`BevyObject`]s in [`Children`]

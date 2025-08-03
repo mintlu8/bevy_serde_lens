@@ -1,7 +1,7 @@
-use bevy_ecs::component::{Mutable, StorageType};
-use bevy_ecs::{component::Component, world::World};
-use bevy_reflect::DynamicTypePath;
-use bevy_reflect::TypePath;
+use bevy::ecs::component::{Mutable, StorageType};
+use bevy::ecs::{component::Component, world::World};
+use bevy::reflect::DynamicTypePath;
+use bevy::reflect::TypePath;
 use bevy_serde_lens::typetagged::ErasedObject;
 use bevy_serde_lens::typetagged::TypeTagged;
 use bevy_serde_lens::{BevyObject, Maybe, WorldExtension};

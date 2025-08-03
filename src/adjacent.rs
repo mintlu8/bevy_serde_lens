@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bevy_ecs::query::QueryData;
+use bevy::ecs::query::QueryData;
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

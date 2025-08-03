@@ -1,8 +1,8 @@
-use bevy_ecs::entity::Entity;
+use bevy::ecs::entity::Entity;
 use bevy_serde_lens_core::{DeUtils, ScopeUtils};
 use serde::{
-    de::{SeqAccess, Visitor},
     Deserialize, Deserializer,
+    de::{SeqAccess, Visitor},
 };
 use std::fmt::Debug;
 use std::marker::PhantomData;

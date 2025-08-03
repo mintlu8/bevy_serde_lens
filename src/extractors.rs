@@ -1,21 +1,26 @@
-use crate::{BevyObject, BindProject, BindProjectQuery, ZstInit};
-use bevy_ecs::{
+use crate::{BevyObject, BindProject, BindProjectQuery, MappedSerializer, ZstInit};
+use bevy::ecs::{
     query::{QueryFilter, With},
     resource::Resource,
     world::FromWorld,
 };
+use bevy::state::state::{FreelyMutableState, NextState, State};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
-use bevy_state::state::{FreelyMutableState, NextState, State};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Debug, marker::PhantomData};
 
 #[allow(unused)]
-use bevy_ecs::component::Component;
+use bevy::ecs::component::Component;
 
-/// Extractor that allows a [`BevyObject`] to be missing.
+/// A unified marker wrapper for a few things.
 ///
+/// When use in the [`BevyObject`] macro, allows mandatory items to be missing
+/// and serialize them as an [`Option`].
 /// `#[serde(default)]` can be used to make this optional
 /// if used in self describing formats.
+///
+/// When used in `with` notation inside a serde macro,
+/// allows certain modifiers to take `Option<T>` instead of `T`.
 pub struct Maybe<T>(pub(crate) PhantomData<T>);
 
 impl<T> Debug for Maybe<T> {
@@ -128,7 +133,7 @@ impl<'de, T: Component + FromWorld> Deserialize<'de> for DefaultInit<T> {
     where
         D: serde::Deserializer<'de>,
     {
-        <()>::deserialize(deserializer)?;
+        <() as Deserialize>::deserialize(deserializer)?;
         let item = DeUtils::with_world_mut::<D, _>(T::from_world)?;
         DeUtils::insert::<D>(item)?;
         Ok(Self(PhantomData))
@@ -182,47 +187,50 @@ impl<'de, T: QueryFilter + FromWorld> Deserialize<'de> for AdditionalFilter<T> {
     where
         D: serde::Deserializer<'de>,
     {
-        <()>::deserialize(deserializer)?;
+        <() as Deserialize>::deserialize(deserializer)?;
         Ok(Self(PhantomData))
     }
 }
 
 /// Serialize a component on the active entity.
-pub struct SerializeComponent<T>(PhantomData<T>);
+pub struct AdaptedComponent<T, C>(PhantomData<(T, C)>);
 
-impl<T> Debug for SerializeComponent<T> {
+/// Serialize a component on the active entity.
+pub type SerializeComponent<T> = AdaptedComponent<T, ()>;
+
+impl<T, C> Debug for AdaptedComponent<T, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SerializeComponent").finish()
     }
 }
 
-impl<T> ZstInit for SerializeComponent<T> {
+impl<T, C> ZstInit for AdaptedComponent<T, C> {
     fn init() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<T: Component> BindProject for SerializeComponent<T> {
+impl<T: Component, C> BindProject for AdaptedComponent<T, C> {
     type To = Self;
     type Filter = With<T>;
 }
 
-impl<T: Component> BindProjectQuery for SerializeComponent<T> {
+impl<T: Component, C> BindProjectQuery for AdaptedComponent<T, C> {
     type Data = &'static T;
 }
 
-impl<T: Component + Serialize> Serialize for SerializeComponent<T> {
+impl<T: Component, C: MappedSerializer<T>> Serialize for AdaptedComponent<T, C> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        SerUtils::with_component::<T, S, _>(|component| component.serialize(serializer))?
+        SerUtils::with_component::<T, S, _>(|component| C::serialize(component, serializer))?
     }
 }
 
-impl<'de, T: Component + Deserialize<'de>> Deserialize<'de> for SerializeComponent<T> {
+impl<'de, T: Component, C: MappedSerializer<T>> Deserialize<'de> for AdaptedComponent<T, C> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let component = T::deserialize(deserializer)?;
+        let component = C::deserialize(deserializer)?;
         DeUtils::insert::<D>(component)?;
         Ok(ZstInit::init())
     }
@@ -327,40 +335,5 @@ impl<'de, T: FreelyMutableState + Deserialize<'de>> Deserialize<'de> for Seriali
             state.set(new_state);
         })?;
         Ok(Self(PhantomData))
-    }
-}
-
-/// A trait that enables [`AdaptedComponent`] to change the behavior of serialization
-/// and add serialization support to non-serialize types.
-pub trait SerdeAdaptor {
-    type Type;
-
-    fn serialize<S: Serializer>(serializer: S, item: &Self::Type) -> Result<S::Ok, S::Error>;
-    fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self::Type, D::Error>;
-}
-
-/// Apply a [`SerdeAdaptor`] to a [`SerializeComponent<T>`] to change how a component is serialized.
-///
-/// # Note
-///
-/// Non [`Serialize`] components are not [`BevyObject`], use [`SerializeComponent`] instead.
-pub struct AdaptedComponent<S: SerdeAdaptor>(PhantomData<S::Type>);
-
-impl<A: SerdeAdaptor<Type: Component>> AdaptedComponent<A> {
-    #[doc(hidden)]
-    pub fn serialize<S: Serializer>(
-        _: &SerializeComponent<A::Type>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        SerUtils::with_component::<A::Type, S, _>(|component| A::serialize(serializer, component))?
-    }
-
-    #[doc(hidden)]
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<SerializeComponent<A::Type>, D::Error> {
-        let component = A::deserialize(deserializer)?;
-        DeUtils::insert::<D>(component)?;
-        Ok(SerializeComponent(PhantomData))
     }
 }

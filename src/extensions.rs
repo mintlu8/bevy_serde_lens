@@ -1,10 +1,11 @@
+use crate::BatchSerialization;
+use crate::asset::{DE_REUSABLE_HANDLES, SER_REUSABLE_HANDLES};
 use crate::typetagged::TYPETAG_SERVER;
 use crate::typetagged::{ErasedObject, TypeTagServer};
-use crate::BatchSerialization;
-use bevy_app::App;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
-use bevy_reflect::TypePath;
+use bevy::app::App;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::world::World;
+use bevy::reflect::TypePath;
 use bevy_serde_lens_core::ScopeUtils;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -82,10 +83,13 @@ impl WorldExtension for World {
         let mut serializer = Some(serializer);
         let mut result = None;
 
-        self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
-            (extractions.ser)(world, &mut |world| {
-                result = Some(T::serialize(world, serializer.take().unwrap()))
-            })
+        let mut handles = Default::default();
+        SER_REUSABLE_HANDLES.set(&mut handles, || {
+            self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
+                (extractions.ser)(world, &mut |world| {
+                    result = Some(T::serialize(world, serializer.take().unwrap()))
+                })
+            });
         });
         result.unwrap()
     }
@@ -98,12 +102,15 @@ impl WorldExtension for World {
         let mut deserializer = Some(deserializer);
         let mut result = None;
 
-        self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
-            (extractions.de)(world, &mut |world| {
-                result = Some(ScopeUtils::deserialize_scope(world, || {
-                    T::De::deserialize(deserializer.take().unwrap())
-                }))
-            })
+        let mut handles = Default::default();
+        DE_REUSABLE_HANDLES.set(&mut handles, || {
+            self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
+                (extractions.de)(world, &mut |world| {
+                    result = Some(ScopeUtils::deserialize_scope(world, || {
+                        T::De::deserialize(deserializer.take().unwrap())
+                    }))
+                })
+            });
         });
         // Discard the zst.
         result.unwrap().map(|_| ())
@@ -117,10 +124,13 @@ impl WorldExtension for World {
         self.init_resource::<RegisteredExtractions>();
         let mut f = Some(f);
         let mut result = None;
-        self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
-            (extractions.de)(world, &mut |world| {
-                result = Some(ScopeUtils::deserialize_scope(world, f.take().unwrap()))
-            })
+        let mut handles = Default::default();
+        DE_REUSABLE_HANDLES.set(&mut handles, || {
+            self.resource_scope::<RegisteredExtractions, _>(|world, extractions| {
+                (extractions.de)(world, &mut |world| {
+                    result = Some(ScopeUtils::deserialize_scope(world, f.take().unwrap()))
+                })
+            });
         });
         result.unwrap()
     }

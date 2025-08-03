@@ -1,11 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
-use bevy_ecs::component::Component;
-use bevy_ecs::query::{QueryData, QueryFilter};
-use bevy_ecs::world::EntityRef;
-#[allow(unused)]
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#![allow(clippy::collapsible_else_if)]
+use bevy::ecs::component::Component;
+use bevy::ecs::query::{QueryData, QueryFilter};
+use bevy::ecs::world::EntityRef;
 mod extractors;
 pub use extractors::*;
 mod children;
@@ -24,26 +23,30 @@ pub mod asset;
 mod filter;
 pub mod interning;
 pub mod typetagged;
+mod util;
 pub use filter::EntityFilter;
+pub use util::*;
 #[cfg(any(feature = "linkme", doc))]
 #[cfg_attr(docsrs, doc(cfg(feature = "linkme")))]
 pub mod linking;
 
 #[allow(unused)]
-use bevy_asset::Handle;
+use bevy::asset::Handle;
 #[allow(unused)]
-use bevy_ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::Children;
 
 #[doc(hidden)]
-pub use bevy_ecs::{
+pub use bevy::ecs::{
     entity::Entity,
     query::With,
     world::{EntityWorldMut, World},
 };
 #[doc(hidden)]
-pub use bevy_reflect::TypePath;
+pub use bevy::reflect::TypePath;
 #[doc(hidden)]
 pub use serde;
+#[allow(unused)]
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 pub use bevy_serde_lens_core::{DeUtils, SerUtils};
 #[cfg(feature = "derive")]
@@ -128,13 +131,13 @@ where
     }
 }
 
-/// Make a type usable in in the [`BevyObject`] macro.
+/// Make a type usable in the [`BevyObject`] macro.
 pub trait BindProject {
     type To: ZstInit;
     type Filter: QueryFilter;
 }
 
-/// Make a type usable in in the [`BevyObject`] macro in `query` mode.
+/// Make a type usable in the [`BevyObject`] macro in `query` mode.
 pub trait BindProjectQuery {
     type Data: QueryData;
 }
@@ -184,3 +187,6 @@ macro_rules! batch_inner {
         $crate::Join<$first, $crate::batch_inner!($($ty),*)>
     };
 }
+
+#[doc(hidden)]
+pub use std::format;

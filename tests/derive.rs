@@ -1,10 +1,8 @@
-use bevy_asset::{Asset, Handle};
-use bevy_ecs::{bundle::Bundle, component::Component};
-use bevy_reflect::TypePath;
-use bevy_serde_lens::{
-    asset::{PathHandle, UniqueHandle},
-    BevyObject, ChildVec, DefaultInit, Maybe,
-};
+use bevy::asset::{Asset, Handle};
+use bevy::ecs::{bundle::Bundle, component::Component};
+use bevy::reflect::TypePath;
+use bevy_serde_lens::asset::{OwnedHandle, PathedHandle};
+use bevy_serde_lens::{BevyObject, ChildVec, DefaultInit, Maybe};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, TypePath, Asset)]
@@ -16,10 +14,11 @@ struct MySprite(
     f32,
     f32,
     f32,
-    #[serde(with = "PathHandle")] Handle<Image>,
-    #[serde(with = "UniqueHandle")] Handle<Image>,
-    PathHandle<Image>,
-    UniqueHandle<Image>,
+    #[serde(with = "PathedHandle")] Handle<Image>,
+    #[serde(with = "OwnedHandle")] Handle<Image>,
+    PathedHandle<Image>,
+    OwnedHandle<Image>,
+    #[serde(with = "Maybe::<OwnedHandle<_>>")] Option<Handle<Image>>,
 );
 
 #[derive(Debug, Component, Default)]

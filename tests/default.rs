@@ -1,6 +1,6 @@
 #![allow(clippy::upper_case_acronyms)]
-use bevy_ecs::{component::Component, query::With, world::World};
-use bevy_reflect::TypePath;
+use bevy::ecs::{component::Component, query::With, world::World};
+use bevy::reflect::TypePath;
 use bevy_serde_lens::{BevyObject, DefaultInit, WorldExtension};
 use serde_json::json;
 

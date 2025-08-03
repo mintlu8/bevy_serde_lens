@@ -3,8 +3,8 @@ members = ["core", "derive"]
 
 [package]
 name = "bevy_serde_lens"
-version = "0.6.0"
-edition = "2021"
+version = "0.7.0"
+edition = "2024"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -34,11 +34,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 bevy_serde_lens_core = { version = "0.16.0", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
-bevy_ecs = "0.16.0"
-bevy_app = "0.16.0"
-bevy_asset = "0.16.0"
-bevy_reflect = "0.16.0"
-bevy_state = "0.16.0"
+bevy = { version = "0.16.0", default-features = false, features = ["bevy_asset", "bevy_state"] }
 
 erased-serde = "0.4.3"
 itertools = "0.13.0"
@@ -50,7 +46,7 @@ scoped-tls-hkt = "0.1.4"
 linkme = { version = "0.3.31", optional = true }
 
 [dev-dependencies]
-bevy_scene = "0.16.0"
+bevy = "0.16.0"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"

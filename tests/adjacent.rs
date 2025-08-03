@@ -1,7 +1,7 @@
 use std::any::Any;
 
-use bevy_ecs::{component::Component, world::World};
-use bevy_reflect::TypePath;
+use bevy::ecs::{component::Component, world::World};
+use bevy::reflect::TypePath;
 use bevy_serde_lens::{Adjacent, BevyObject, DeUtils, SerializeAdjacent, WorldExtension};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::json;

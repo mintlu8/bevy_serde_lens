@@ -4,8 +4,8 @@ use std::{
     marker::PhantomData,
 };
 
-use bevy_ecs::resource::Resource;
-use bevy_reflect::TypePath;
+use bevy::ecs::resource::Resource;
+use bevy::reflect::TypePath;
 use erased_serde::Deserializer;
 use rustc_hash::FxHashMap;
 use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
@@ -77,8 +77,7 @@ impl<'de, V: ErasedObject> Visitor<'de> for TypeTaggedVisitor<'de, V> {
         }
         let Some(de_fn) = TYPETAG_SERVER.with(|map| map.get::<V>(&key)) else {
             return Err(serde::de::Error::custom(format!(
-                "unregistered type-tag {}",
-                key,
+                "unregistered type-tag {key}",
             )));
         };
         map.next_value_seed(DeserializeFnSeed(de_fn, PhantomData))
