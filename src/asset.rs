@@ -11,6 +11,7 @@ use scoped_tls_hkt::scoped_thread_local;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::path::PathBuf;
 
 use crate::{MappedSerializer, MappedValue, derrorf, impl_with_notation_newtype, serrorf};
 
@@ -187,4 +188,54 @@ impl<'de, T: Asset, M: MappedSerializer<T>, const P: bool> Deserialize<'de>
 impl_with_notation_newtype!(
     [T: Asset, M: MappedSerializer<T>, const P: bool] SerializeHandle [T, M, P]
     Handle<T>
+);
+
+
+/// Projection of [`Handle`] that serializes its string path, will not serialize the underlying type.
+#[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
+#[repr(transparent)]
+pub struct PathHandle<T: Asset>(pub Handle<T>);
+
+impl<T: Asset> Deref for PathHandle<T> {
+    type Target = Handle<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Asset> Serialize for PathHandle<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SerUtils::with_world::<S, _>(|world| {
+            let Some(asset_server) = world.get_resource::<AssetServer>() else {
+                return Err(serde::ser::Error::custom("AssetServer not found."));
+            };
+            match asset_server.get_path(&self.0) {
+                Some(path) => path.serialize(serializer),
+                None => Err(serde::ser::Error::custom(format!(
+                    "Handle {:?} has no associated path.",
+                    self.0
+                ))),
+            }
+        })?
+    }
+}
+
+impl<'de, T: Asset> Deserialize<'de> for PathHandle<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let path = PathBuf::deserialize(deserializer)?;
+        DeUtils::with_world_mut::<D, _>(|world| {
+            let Some(asset_server) = world.get_resource::<AssetServer>() else {
+                return Err(serde::de::Error::custom("AssetServer not found."));
+            };
+            Ok(PathHandle(asset_server.load(path)))
+        })?
+    }
+}
+
+impl_with_notation_newtype!(
+    [T: Asset] PathHandle [T] Handle<T>
 );

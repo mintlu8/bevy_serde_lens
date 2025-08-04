@@ -1,7 +1,7 @@
 //! Module for loading deserializers via [`linkme`].
-use bevy_app::Plugin;
-use bevy_ecs::world::World;
-use bevy_reflect::TypePath;
+use bevy::app::{App, Plugin};
+use bevy::ecs::world::World;
+use bevy::reflect::TypePath;
 use serde::de::DeserializeOwned;
 
 use crate::{WorldExtension, typetagged::ErasedObject};
@@ -28,7 +28,7 @@ pub const fn as_deserialize_plugin<A: ErasedObject, B: Into<A> + TypePath + Dese
 pub struct LinkDeserializersPlugin;
 
 impl Plugin for LinkDeserializersPlugin {
-    fn build(&self, app: &mut bevy_app::App) {
+    fn build(&self, app: &mut App) {
         for f in DESERIALIZER_PLUGINS {
             f(app.world_mut())
         }
