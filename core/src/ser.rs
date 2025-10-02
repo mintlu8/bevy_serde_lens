@@ -1,7 +1,7 @@
 use crate::{ENTITY, WORLD};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::ReadOnlyQueryData;
+use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, World};
 use serde::ser::Error as SError;
@@ -62,8 +62,8 @@ impl SerUtils {
         })
     }
 
-    pub fn with_query<C: ReadOnlyQueryData, S: Serializer, T>(
-        f: impl FnOnce(C::Item<'_>) -> T,
+    pub fn with_query<C: ReadOnlyQueryData + ReleaseStateQueryData, S: Serializer, T>(
+        f: impl FnOnce(C::Item<'_, '_>) -> T,
     ) -> Result<T, S::Error> {
         validate_world!();
         let Some(entity) = ENTITY.get() else {

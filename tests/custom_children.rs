@@ -1,9 +1,7 @@
 use std::convert::Infallible;
 
 use bevy::ecs::{
-    component::{Component, HookContext},
-    entity::Entity,
-    world::{DeferredWorld, EntityWorldMut, World},
+    component::Component, entity::Entity, lifecycle::HookContext, world::{DeferredWorld, EntityWorldMut, World}
 };
 use bevy::reflect::TypePath;
 use bevy_serde_lens::{BevyObject, Child, ChildVec, ChildrenLike, Maybe, WorldExtension};

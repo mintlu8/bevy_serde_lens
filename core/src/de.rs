@@ -2,7 +2,7 @@ use crate::{ENTITY, WORLD_MUT};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::{Component, Mutable};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::ReadOnlyQueryData;
+use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityWorldMut, Mut, World};
 use serde::de::Error as DError;
@@ -95,8 +95,8 @@ impl DeUtils {
         })
     }
 
-    pub fn with_query<'de, C: ReadOnlyQueryData, D: Deserializer<'de>, T>(
-        f: impl FnOnce(C::Item<'_>) -> T,
+    pub fn with_query<'de, C: ReadOnlyQueryData + ReleaseStateQueryData, D: Deserializer<'de>, T>(
+        f: impl FnOnce(C::Item<'_, '_>) -> T,
     ) -> Result<T, D::Error> {
         validate_world!();
         let Some(entity) = ENTITY.get() else {

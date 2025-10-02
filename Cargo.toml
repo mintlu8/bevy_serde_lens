@@ -31,10 +31,10 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-bevy_serde_lens_core = { version = "0.16.0", path = "./core" }
+bevy_serde_lens_core = { version = "0.17.0", path = "./core" }
 bevy_serde_lens_derive = { version = "0.1", path = "./derive", optional = true }
 
-bevy = { version = "0.16.0", default-features = false, features = ["bevy_asset", "bevy_state"] }
+bevy = { version = "0.17.0", default-features = false, features = ["bevy_asset", "bevy_state"] }
 
 erased-serde = "0.4.3"
 itertools = "0.13.0"
@@ -46,7 +46,7 @@ scoped-tls-hkt = "0.1.4"
 linkme = { version = "0.3.31", optional = true }
 
 [dev-dependencies]
-bevy = "0.16.0"
+bevy = "0.17.0"
 criterion = "0.5.1"
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
 rand = "0.8.5"

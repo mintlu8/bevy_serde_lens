@@ -61,10 +61,10 @@ pub trait ZstInit: Sized {
 }
 
 #[doc(hidden)]
-pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as QueryData>::Item<'t>;
+pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as QueryData>::Item<'t, 't>;
 #[doc(hidden)]
 pub type BindItem<'t, T> =
-    <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as QueryData>::Item<'t>;
+    <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as QueryData>::Item<'t, 't>;
 
 /// Associate a [`BevyObject`] to a [`EntityFilter`], usually a component as `With<Component>`.
 ///

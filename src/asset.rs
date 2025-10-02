@@ -2,7 +2,7 @@
 
 use bevy::asset::uuid::Uuid;
 use bevy::asset::{
-    Asset, AssetId, AssetPath, AssetServer, Assets, Handle, UntypedAssetId, UntypedHandle,
+    Asset, AssetPath, AssetServer, Assets, Handle, UntypedAssetId, UntypedHandle,
 };
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
@@ -137,16 +137,11 @@ impl<T: Asset, M: MappedSerializer<T>, const P: bool> Serialize for SerializeHan
                         ))
                     })
                 }
-                Handle::Weak(asset_id) => match asset_id {
-                    AssetId::Index { .. } => {
-                        Err(serrorf!("Handle {:?} cannot be serialized.", self.0))
-                    }
-                    AssetId::Uuid { uuid } => HandleSerialization::<T, M> {
+                Handle::Uuid(uuid, _) => HandleSerialization::<T, M> {
                         index: SerHandleId::Uuid(uuid),
                         asset: None,
                     }
                     .serialize(serializer),
-                },
             }
         })?
     }
@@ -189,7 +184,6 @@ impl_with_notation_newtype!(
     [T: Asset, M: MappedSerializer<T>, const P: bool] SerializeHandle [T, M, P]
     Handle<T>
 );
-
 
 /// Projection of [`Handle`] that serializes its string path, will not serialize the underlying type.
 #[derive(Debug, Clone, Default, PartialEq, Eq, RefCast)]
