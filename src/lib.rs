@@ -61,7 +61,8 @@ pub trait ZstInit: Sized {
 }
 
 #[doc(hidden)]
-pub type Item<'t, T> = <<<T as BevyObject>::Data as QueryData>::ReadOnly as QueryData>::Item<'t, 't>;
+pub type Item<'t, T> =
+    <<<T as BevyObject>::Data as QueryData>::ReadOnly as QueryData>::Item<'t, 't>;
 #[doc(hidden)]
 pub type BindItem<'t, T> =
     <<<T as BindProjectQuery>::Data as QueryData>::ReadOnly as QueryData>::Item<'t, 't>;

@@ -1,9 +1,7 @@
 //! Module for serializing [`Handle`]s and [`Asset`]s.
 
 use bevy::asset::uuid::Uuid;
-use bevy::asset::{
-    Asset, AssetPath, AssetServer, Assets, Handle, UntypedAssetId, UntypedHandle,
-};
+use bevy::asset::{Asset, AssetPath, AssetServer, Assets, Handle, UntypedAssetId, UntypedHandle};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
@@ -138,10 +136,10 @@ impl<T: Asset, M: MappedSerializer<T>, const P: bool> Serialize for SerializeHan
                     })
                 }
                 Handle::Uuid(uuid, _) => HandleSerialization::<T, M> {
-                        index: SerHandleId::Uuid(uuid),
-                        asset: None,
-                    }
-                    .serialize(serializer),
+                    index: SerHandleId::Uuid(uuid),
+                    asset: None,
+                }
+                .serialize(serializer),
             }
         })?
     }

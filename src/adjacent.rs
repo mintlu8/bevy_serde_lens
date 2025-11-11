@@ -42,7 +42,11 @@ impl<A: SerializeAdjacent<B>, B: QueryData> ZstInit for Adjacent<A, B> {
     }
 }
 
-impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for Adjacent<A, B> where A::ReadOnly: ReleaseStateQueryData, B::ReadOnly: ReleaseStateQueryData{
+impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for Adjacent<A, B>
+where
+    A::ReadOnly: ReleaseStateQueryData,
+    B::ReadOnly: ReleaseStateQueryData,
+{
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         SerUtils::with_query::<(A::ReadOnly, B::ReadOnly), S, _>(|(a, b)| {
             A::serialize_adjacent(&a, &b, serializer)
@@ -50,7 +54,11 @@ impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for Adjacent<A, B> where A
     }
 }
 
-impl<'de, A: SerializeAdjacent<B>, B: QueryData> Deserialize<'de> for Adjacent<A, B> where A::ReadOnly: ReleaseStateQueryData, B::ReadOnly: ReleaseStateQueryData {
+impl<'de, A: SerializeAdjacent<B>, B: QueryData> Deserialize<'de> for Adjacent<A, B>
+where
+    A::ReadOnly: ReleaseStateQueryData,
+    B::ReadOnly: ReleaseStateQueryData,
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         DeUtils::with_query::<A::ReadOnly, D, _>(|a| A::deserialize_adjacent(&a, deserializer))??;
         Ok(ZstInit::init())
@@ -68,7 +76,11 @@ impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for AdjacentSerializeImpl<
     }
 }
 
-impl<A: SerializeAdjacent<B>, B: QueryData> BevyObject for Adjacent<A, B> where A::ReadOnly: ReleaseStateQueryData, B::ReadOnly: ReleaseStateQueryData {
+impl<A: SerializeAdjacent<B>, B: QueryData> BevyObject for Adjacent<A, B>
+where
+    A::ReadOnly: ReleaseStateQueryData,
+    B::ReadOnly: ReleaseStateQueryData,
+{
     type Object = Self;
 
     const IS_QUERY: bool = true;

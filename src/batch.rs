@@ -194,7 +194,6 @@ where
     fn serialize<S: Serializer>(world: &mut World, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(Some(Self::LEN))?;
         Self::save_map(&mut map, world)?;
-        B::save_map(&mut map, world)?;
         map.end()
     }
 

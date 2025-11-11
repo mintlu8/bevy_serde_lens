@@ -95,7 +95,12 @@ impl DeUtils {
         })
     }
 
-    pub fn with_query<'de, C: ReadOnlyQueryData + ReleaseStateQueryData, D: Deserializer<'de>, T>(
+    pub fn with_query<
+        'de,
+        C: ReadOnlyQueryData + ReleaseStateQueryData,
+        D: Deserializer<'de>,
+        T,
+    >(
         f: impl FnOnce(C::Item<'_, '_>) -> T,
     ) -> Result<T, D::Error> {
         validate_world!();
