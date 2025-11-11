@@ -36,7 +36,7 @@ pub trait WorldExtension {
         deserializer: D,
     ) -> Result<(), D::Error>;
     /// Create a [`Serialize`] type from a [`World`] and a [`BatchSerialization`] type.
-    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S>;
+    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<'_, S>;
     /// Create a [`Deserialize`] scope from a [`World`].
     ///
     /// [`InWorld`] can be used inside the scope.
@@ -116,7 +116,7 @@ impl WorldExtension for World {
         result.unwrap().map(|_| ())
     }
 
-    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S> {
+    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<'_, S> {
         SerializeLens(Mutex::new(self), PhantomData)
     }
 
@@ -202,7 +202,7 @@ impl WorldExtension for App {
         self.world_mut().load::<T, D>(deserializer)
     }
 
-    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<S> {
+    fn serialize_lens<S: BatchSerialization>(&mut self) -> SerializeLens<'_, S> {
         self.world_mut().serialize_lens()
     }
 

@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
+#![allow(clippy::collapsible_if)]
 #![allow(clippy::collapsible_else_if)]
 use bevy::ecs::component::Component;
 use bevy::ecs::query::{QueryData, QueryFilter};
@@ -91,7 +92,7 @@ pub trait BevyObject {
     /// Obtain the root node to parent this component to if directly called.
     /// Default is `None`, which means no parent.
     #[allow(unused)]
-    fn get_root(world: &mut World) -> Option<EntityWorldMut> {
+    fn get_root(world: &mut World) -> Option<EntityWorldMut<'_>> {
         None
     }
 
