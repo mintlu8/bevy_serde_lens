@@ -75,7 +75,7 @@ impl SerUtils {
                 .map_err(|_| SError::custom("Entity missing."))?
                 .get_components::<C>()
                 .map(f)
-                .ok_or_else(|| SError::custom("One or more component missing."))
+                .map_err(|_| SError::custom("One or more component missing."))
         })
     }
 

@@ -93,7 +93,7 @@ pub fn test() {
 
     world.load::<AnyComponent, _>(json!([69])).unwrap();
 
-    assert_eq!(world.entities().len(), 1);
+    assert_eq!(world.entity_count(), 1);
     let value = world
         .save::<AnyComponent, _>(serde_json::value::Serializer)
         .unwrap();
@@ -105,7 +105,7 @@ pub fn test() {
         .load::<AnyComponent, _>(json!([-3, false, 72, 0, 3.14, -1.41, "crab", null]))
         .unwrap();
 
-    assert_eq!(world.entities().len(), 8);
+    assert_eq!(world.entity_count(), 8);
 
     let value = world
         .save::<AnyComponent, _>(serde_json::value::Serializer)

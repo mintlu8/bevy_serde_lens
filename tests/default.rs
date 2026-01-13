@@ -32,7 +32,7 @@ pub fn test() {
     assert!(query.single(&world).is_ok());
 
     world.despawn_bound_objects::<C>();
-    assert!(world.entities().is_empty());
+    assert!(world.entity_count() == 0);
     assert!(query.single(&world).is_err());
 
     world.load::<D, _>(json!([{}])).unwrap();
@@ -41,7 +41,7 @@ pub fn test() {
 
     world.despawn_bound_objects::<C>();
     assert!(world.load::<B, _>(json!([{}])).is_err());
-    assert!(world.entities().is_empty());
+    assert!(world.entity_count() == 0);
     assert!(query.single(&world).is_err());
 
     world.load::<C, _>(json!([{"a": null}])).unwrap();

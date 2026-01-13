@@ -116,14 +116,14 @@ pub fn test() {
     );
 
     world.despawn_bound_objects::<AB>();
-    assert_eq!(world.entities().len(), 4);
+    assert_eq!(world.entity_count(), 4);
 
     world.despawn_bound_objects::<CD>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 
     world.load::<ABCD, _>(&value).unwrap();
 
-    assert_eq!(world.entities().len(), 10);
+    assert_eq!(world.entity_count(), 10);
 
     let value = world
         .save::<ABCD, _>(serde_json::value::Serializer)
@@ -140,7 +140,7 @@ pub fn test() {
     );
 
     world.despawn_bound_objects::<ABCD>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 
     world.load::<ABCD, _>(value).unwrap();
 
@@ -163,13 +163,13 @@ pub fn test() {
 
     world.despawn_bound_objects::<ABCDR>();
 
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 
     assert!(!world.contains_resource::<R>());
 
     world.load::<ABCDR, _>(value.clone()).unwrap();
 
-    assert_eq!(world.entities().len(), 10);
+    assert_eq!(world.entity_count(), 10);
 
     assert!(world.contains_resource::<R>());
 
@@ -179,7 +179,7 @@ pub fn test() {
         let _: InWorld<ABCDR> = serde_json::from_value(value).unwrap();
     });
 
-    assert_eq!(world.entities().len(), 10);
+    assert_eq!(world.entity_count(), 10);
 
     assert!(world.contains_resource::<R>());
 

@@ -170,7 +170,7 @@ pub fn test_custom_hierarchy() {
         },
     ]);
     world.load::<SerializeUnit, _>(&validation).unwrap();
-    assert_eq!(world.entities().len(), 18);
+    assert_eq!(world.entity_count(), 18);
 
     let value = world
         .save::<SerializeUnit, _>(serde_json::value::Serializer)
@@ -178,7 +178,7 @@ pub fn test_custom_hierarchy() {
     assert_eq!(value, validation);
 
     world.despawn_bound_objects::<SerializeUnit>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 
     world.load::<SerializeUnit, _>(&value).unwrap();
 
@@ -188,5 +188,5 @@ pub fn test_custom_hierarchy() {
     assert_eq!(value, validation);
 
     world.despawn_bound_objects::<SerializeUnit>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 }

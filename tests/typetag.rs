@@ -115,9 +115,9 @@ pub fn test() {
         .unwrap();
 
     world.despawn_bound_objects::<AnimalComponent>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
     world.load::<AnimalComponent, _>(&value).unwrap();
-    assert_eq!(world.entities().len(), 3);
+    assert_eq!(world.entity_count(), 3);
 
     let value = world
         .save::<AnimalComponent, _>(serde_json::value::Serializer)
@@ -138,11 +138,11 @@ pub fn test() {
     let result = vec.output.finalize().unwrap();
 
     world.despawn_bound_objects::<AnimalComponent>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
 
     let mut de = postcard::Deserializer::from_bytes(&result);
     world.load::<AnimalComponent, _>(&mut de).unwrap();
-    assert_eq!(world.entities().len(), 3);
+    assert_eq!(world.entity_count(), 3);
 
     let value = world
         .save::<AnimalComponent, _>(serde_json::value::Serializer)
@@ -217,7 +217,7 @@ pub fn test2() {
 
     world.load::<SerializeAnimal, _>(&value).unwrap();
 
-    assert_eq!(world.entities().len(), 2);
+    assert_eq!(world.entity_count(), 2);
 
     let value2 = world
         .save::<SerializeAnimal, _>(serde_json::value::Serializer)

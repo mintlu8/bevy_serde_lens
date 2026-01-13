@@ -94,9 +94,9 @@ pub fn test() {
     );
 
     world.despawn_bound_objects::<FlagComponent>();
-    assert_eq!(world.entities().len(), 0);
+    assert_eq!(world.entity_count(), 0);
     world.load::<FlagComponent, _>(&value).unwrap();
-    assert_eq!(world.entities().len(), 3);
+    assert_eq!(world.entity_count(), 3);
 
     let value = world
         .save::<FlagComponent, _>(serde_json::value::Serializer)

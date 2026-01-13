@@ -113,7 +113,7 @@ impl DeUtils {
                 .map_err(|_| DError::custom("Entity missing."))?
                 .get_components::<C>()
                 .map(f)
-                .ok_or_else(|| DError::custom("One or more component missing."))
+                .map_err(|_| DError::custom("One or more component missing."))
         })
     }
 
