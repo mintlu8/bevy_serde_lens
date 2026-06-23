@@ -70,12 +70,8 @@ fn token_stream_is_ident(stream: &TokenStream, name: &str) -> bool {
 
 fn parse_attr(attr: &Attribute, name: &str) -> bool {
     match &attr.meta {
-        Meta::List(list) => {
-            if list.path.get_ident().is_some_and(|i| i == "bevy_object") {
-                token_stream_is_ident(&list.tokens, name)
-            } else {
-                false
-            }
+        Meta::List(list) if list.path.get_ident().is_some_and(|i| i == "bevy_object") => {
+            token_stream_is_ident(&list.tokens, name)
         }
         _ => false,
     }

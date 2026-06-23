@@ -154,7 +154,7 @@ where
     }
 
     fn despawn(world: &mut World) {
-        world.remove_non_send_resource::<T>();
+        world.remove_non_send::<T>();
     }
 }
 

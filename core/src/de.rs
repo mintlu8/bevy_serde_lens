@@ -2,7 +2,7 @@ use crate::{ENTITY, WORLD_MUT};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::{Component, Mutable};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
+use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityWorldMut, Mut, World};
 use serde::de::Error as DError;
@@ -97,7 +97,7 @@ impl DeUtils {
 
     pub fn with_query<
         'de,
-        C: ReadOnlyQueryData + ReleaseStateQueryData,
+        C: ReadOnlyQueryData + ReleaseStateQueryData + SingleEntityQueryData,
         D: Deserializer<'de>,
         T,
     >(
@@ -163,7 +163,7 @@ impl DeUtils {
         })
     }
 
-    pub fn with_resource_mut<'de, R: Resource, D: Deserializer<'de>, T>(
+    pub fn with_resource_mut<'de, R: Resource<Mutability = Mutable>, D: Deserializer<'de>, T>(
         f: impl FnOnce(Mut<R>) -> T,
     ) -> Result<T, D::Error> {
         validate_world!();
@@ -181,7 +181,7 @@ impl DeUtils {
         validate_world!();
         WORLD_MUT.with(|world| {
             world
-                .get_non_send_resource::<R>()
+                .get_non_send::<R>()
                 .map(f)
                 .ok_or_else(|| DError::custom("Resource missing."))
         })
@@ -193,7 +193,7 @@ impl DeUtils {
         validate_world!();
         WORLD_MUT.with(|world| {
             world
-                .get_non_send_resource_mut::<R>()
+                .get_non_send_mut::<R>()
                 .map(f)
                 .ok_or_else(|| DError::custom("Resource missing."))
         })

@@ -1,7 +1,7 @@
 use crate::{ENTITY, WORLD};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
+use bevy_ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, World};
 use serde::ser::Error as SError;
@@ -62,7 +62,11 @@ impl SerUtils {
         })
     }
 
-    pub fn with_query<C: ReadOnlyQueryData + ReleaseStateQueryData, S: Serializer, T>(
+    pub fn with_query<
+        C: ReadOnlyQueryData + ReleaseStateQueryData + SingleEntityQueryData,
+        S: Serializer,
+        T,
+    >(
         f: impl FnOnce(C::Item<'_, '_>) -> T,
     ) -> Result<T, S::Error> {
         validate_world!();
@@ -114,7 +118,7 @@ impl SerUtils {
         validate_world!();
         WORLD.with(|world| {
             world
-                .get_non_send_resource::<R>()
+                .get_non_send::<R>()
                 .map(f)
                 .ok_or_else(|| SError::custom("Resource missing."))
         })

@@ -175,6 +175,7 @@ See the `typetagged` module for details.
 | 0.16 | 0.16                 | 0.6                |
 | 0.17 | 0.17                 | 0.7                |
 | 0.18 | 0.18                 | 0.8                |
+| 0.19 | 0.19                 | 0.9                |
 
 ## License
 

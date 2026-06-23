@@ -298,7 +298,7 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for SerializeNonSend<T
     {
         let resource = T::deserialize(deserializer)?;
         DeUtils::with_world_mut::<D, _>(|world| {
-            world.insert_non_send_resource(resource);
+            world.insert_non_send(resource);
         })?;
         Ok(Self(PhantomData))
     }

@@ -2,6 +2,7 @@
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+use bevy::ecs::component::Mutable;
 use bevy::ecs::resource::Resource;
 use bevy_serde_lens_core::DeUtils;
 use bevy_serde_lens_core::SerUtils;
@@ -19,7 +20,7 @@ pub trait InterningKey: Sized + 'static {
 }
 
 /// A [`Resource`] that holds a pool of values accessible by a [`InterningKey`].
-pub trait Interner<Key>: Resource {
+pub trait Interner<Key>: Resource<Mutability = Mutable> {
     type Error: std::error::Error;
     type ValueRef<'t>: Serialize;
     type Value<'de>: Deserialize<'de>;

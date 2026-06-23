@@ -1,7 +1,7 @@
 use bevy::app::App;
 use bevy::ecs::{component::Component, reflect::ReflectComponent, world::World};
 use bevy::reflect::{Reflect, TypeRegistration, TypeRegistry};
-use bevy::scene::{DynamicScene, serde::SceneDeserializer};
+use bevy::world_serialization::DynamicWorld;
 use bevy_serde_lens::{BevyObject, InWorld, WorldExtension};
 use criterion::{Criterion, criterion_group, criterion_main};
 use itertools::izip;
@@ -57,7 +57,7 @@ pub fn bench_ser_strings(c: &mut Criterion) {
     let mut world2 = App::new();
     world2.world_mut().spawn_batch(strings.iter().cloned());
     world2.register_type::<Character>();
-    let dynamic_scene = DynamicScene::from_world(world2.world());
+    let dynamic_scene = DynamicWorld::from_world(world2.world());
     let mut registry = TypeRegistry::new();
     registry.register::<Character>();
     c.bench_function("postcard_strings_vec", |b| {
@@ -82,7 +82,7 @@ pub fn bench_ser_strings(c: &mut Criterion) {
         b.iter(|| dynamic_scene.serialize(&registry));
     });
     c.bench_function("ron_construct_dynamic_scene", |b| {
-        b.iter(|| DynamicScene::from_world(world2.world()).serialize(&registry));
+        b.iter(|| DynamicWorld::from_world(world2.world()).serialize(&registry));
     });
 }
 
@@ -100,9 +100,9 @@ pub fn bench_de_strings(c: &mut Criterion) {
     world2.register_type::<Character>();
     let mut registry2 = TypeRegistry::new();
     registry2.register::<Character>();
-    let ron2 = DynamicScene::from_world(world2.world())
-        .serialize(&registry2)
-        .unwrap();
+    // let ron2 = DynamicWorld::from_world(world2.world())
+    //     .serialize(&registry2)
+    //     .unwrap();
 
     c.bench_function("postcard_strings_de", |b| {
         b.iter(|| {
@@ -125,18 +125,19 @@ pub fn bench_de_strings(c: &mut Criterion) {
             })
         });
     });
-    c.bench_function("ron_dynamic_scene_strings_de", |b| {
-        b.iter(|| {
-            world.deserialize_scope(|| {
-                use serde::de::DeserializeSeed;
-                let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
-                let _ = SceneDeserializer {
-                    type_registry: &registry,
-                }
-                .deserialize(&mut deserializer);
-            })
-        });
-    });
+    // c.bench_function("ron_dynamic_scene_strings_de", |b| {
+    //     b.iter(|| {
+    //         world.deserialize_scope(|| {
+    //             use serde::de::DeserializeSeed;
+    //             let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
+    //             let _ = WorldDeserializer {
+    //                 type_registry: &registry,
+    //                 load_from_path: &mut ()
+    //             }
+    //             .deserialize(&mut deserializer);
+    //         })
+    //     });
+    // });
 }
 
 pub fn bench_ser_bio(c: &mut Criterion) {
@@ -146,7 +147,7 @@ pub fn bench_ser_bio(c: &mut Criterion) {
     let mut world2 = App::new();
     world2.world_mut().spawn_batch(bios.iter().cloned());
     world2.register_type::<Bio>();
-    let dynamic_scene = DynamicScene::from_world(world2.world());
+    let dynamic_scene = DynamicWorld::from_world(world2.world());
     let mut registry = TypeRegistry::new();
     registry.register::<Bio>();
     c.bench_function("postcard_bios_serde_lens", |b| {
@@ -162,7 +163,7 @@ pub fn bench_ser_bio(c: &mut Criterion) {
         b.iter(|| dynamic_scene.serialize(&registry));
     });
     c.bench_function("ron_bios_construct_dynamic_scene", |b| {
-        b.iter(|| DynamicScene::from_world(world2.world()).serialize(&registry));
+        b.iter(|| DynamicWorld::from_world(world2.world()).serialize(&registry));
     });
 }
 
@@ -180,9 +181,9 @@ pub fn bench_de_bios(c: &mut Criterion) {
     world2.register_type::<Bio>();
     let mut registry2 = TypeRegistry::new();
     registry2.register::<Bio>();
-    let ron2 = DynamicScene::from_world(world2.world())
-        .serialize(&registry2)
-        .unwrap();
+    // let ron2 = DynamicWorld::from_world(world2.world())
+    //     .serialize(&registry2)
+    //     .unwrap();
     c.bench_function("postcard_bios_de", |b| {
         b.iter(|| {
             world.deserialize_scope(|| {
@@ -204,18 +205,18 @@ pub fn bench_de_bios(c: &mut Criterion) {
             })
         });
     });
-    c.bench_function("ron_bios_dynamic_scene_de", |b| {
-        b.iter(|| {
-            world.deserialize_scope(|| {
-                use serde::de::DeserializeSeed;
-                let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
-                let _ = SceneDeserializer {
-                    type_registry: &registry,
-                }
-                .deserialize(&mut deserializer);
-            })
-        });
-    });
+    // c.bench_function("ron_bios_dynamic_scene_de", |b| {
+    //     b.iter(|| {
+    //         world.deserialize_scope(|| {
+    //             use serde::de::DeserializeSeed;
+    //             let mut deserializer = ron::Deserializer::from_str(&ron2).unwrap();
+    //             let _ = SceneDeserializer {
+    //                 type_registry: &registry,
+    //             }
+    //             .deserialize(&mut deserializer);
+    //         })
+    //     });
+    // });
 }
 
 #[derive(BevyObject)]
@@ -246,7 +247,7 @@ pub fn bench_ser_archetypal(c: &mut Criterion) {
     world2.register_type::<Bio>();
     world2.register_type::<Gender>();
     world2.register_type::<IsDead>();
-    let dynamic_scene = DynamicScene::from_world(world2.world());
+    let dynamic_scene = DynamicWorld::from_world(world2.world());
     let mut registry = TypeRegistry::new();
     registry.register::<Character>();
     registry.register::<Bio>();
@@ -265,7 +266,7 @@ pub fn bench_ser_archetypal(c: &mut Criterion) {
         b.iter(|| dynamic_scene.serialize(&registry));
     });
     c.bench_function("ron_archetypal_construct_dynamic_scene", |b| {
-        b.iter(|| DynamicScene::from_world(world2.world()).serialize(&registry));
+        b.iter(|| DynamicWorld::from_world(world2.world()).serialize(&registry));
     });
 }
 

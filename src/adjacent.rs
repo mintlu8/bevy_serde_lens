@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bevy::ecs::query::{QueryData, ReleaseStateQueryData};
+use bevy::ecs::query::{QueryData, ReleaseStateQueryData, SingleEntityQueryData};
 use bevy_serde_lens_core::{DeUtils, SerUtils};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -44,8 +44,8 @@ impl<A: SerializeAdjacent<B>, B: QueryData> ZstInit for Adjacent<A, B> {
 
 impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for Adjacent<A, B>
 where
-    A::ReadOnly: ReleaseStateQueryData,
-    B::ReadOnly: ReleaseStateQueryData,
+    A::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
+    B::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         SerUtils::with_query::<(A::ReadOnly, B::ReadOnly), S, _>(|(a, b)| {
@@ -56,8 +56,8 @@ where
 
 impl<'de, A: SerializeAdjacent<B>, B: QueryData> Deserialize<'de> for Adjacent<A, B>
 where
-    A::ReadOnly: ReleaseStateQueryData,
-    B::ReadOnly: ReleaseStateQueryData,
+    A::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
+    B::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         DeUtils::with_query::<A::ReadOnly, D, _>(|a| A::deserialize_adjacent(&a, deserializer))??;
@@ -78,8 +78,8 @@ impl<A: SerializeAdjacent<B>, B: QueryData> Serialize for AdjacentSerializeImpl<
 
 impl<A: SerializeAdjacent<B>, B: QueryData> BevyObject for Adjacent<A, B>
 where
-    A::ReadOnly: ReleaseStateQueryData,
-    B::ReadOnly: ReleaseStateQueryData,
+    A::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
+    B::ReadOnly: ReleaseStateQueryData + SingleEntityQueryData,
 {
     type Object = Self;
 
